@@ -358,7 +358,8 @@ jobsradar-api/                  # backend — repo separado
 │   └── worker/                 # Consumidores BullMQ
 ├── packages/
 │   ├── domain/                 # Value Objects, entidades, puertos, Result — interno, no se publica
-│   └── contracts/              # Esquemas Zod — publicado como @jobsradar/contracts
+│   ├── contracts/               # Esquemas Zod — publicado como @jobsradar/contracts
+│   └── adapter-wellfound/       # implementa JobSourcePort — parsers + HttpClient/BrowserClient (sección 6)
 └── docker-compose.yml          # postgres, redis, api, worker
 
 jobsradar-web/                  # frontend — repo separado, también hexagonal (AD-08)
@@ -376,6 +377,16 @@ como dependencia normal, no por workspace compartido. `packages/domain` (backend
 queda interno al backend — no se publica ni lo consume el frontend; `jobsradar-web`
 tiene su propia carpeta `domain/`, ligera, construida sobre los tipos de
 `contracts`, no sobre las entidades/puertos del backend.
+
+`packages/adapter-wellfound` (decisión de Fase 3, la sección 6 original no
+fijaba dónde vivía): paquete propio en vez de código embebido en
+`apps/worker`, para poder testear los parsers contra fixtures sin arrancar
+el worker completo (sección 11) y para que `apps/api` también pueda
+importarlo si en algún momento necesita `getCompany` fuera de una cola.
+Depende de `@jobsradar/domain` (implementa `JobSourcePort`) y de
+`@jobsradar/contracts` (valida su salida contra los esquemas Zod). Sus
+fixtures HTML viven en `packages/adapter-wellfound/fixtures/`, copiadas y
+redactadas desde las que generó la investigación de Fase 0.
 
 ### 9.1 Puertos del frontend (`jobsradar-web`)
 
@@ -440,9 +451,9 @@ Stack: Vitest + React Testing Library + MSW.
 | Fase | Entregable | Bloquea a |
 |---|---|---|
 | **0** | ✅ Completada (2026-08-25) — fixtures + confirmación de JSON-LD, estado hidratado y paginación | Todo |
-| 1 | Repos `jobsradar-api` + `jobsradar-web` + Docker Compose (backend) + CI en cada uno | 2 |
-| 2 | `packages/domain` + `packages/contracts` con tests | 3, 4 |
-| 3 | Parsers contra fixtures (sin red) | 4 |
+| 1 | ✅ Completada (2026-08-25) — Repos `jobsradar-api` + `jobsradar-web` + Docker Compose (backend) + CI en cada uno | 2 |
+| 2 | ✅ Completada (2026-08-25) — `packages/domain` + `packages/contracts` con tests | 3, 4 |
+| 3 | ✅ Completada (2026-08-25) — Parsers contra fixtures (sin red), en `packages/adapter-wellfound` | 4 |
 | 4 | `WellfoundAdapter` + política de ritmo | 5 |
 | 5 | Colas + repositorio + caché | 6 |
 | 6 | API BFF + SSE | 7 |
@@ -501,6 +512,33 @@ Stack: Vitest + React Testing Library + MSW.
 - Pendiente para Fase 4: medir el TTL real de `cf_clearance` y si depende de
   la IP/fingerprint del proceso que lo obtuvo, para dimensionar cada cuánto
   hay que renovar la sesión.
+
+### Fase 3 — resultado (2026-08-25)
+
+Los 3 parsers y la cascada genérica quedaron implementados en
+`packages/adapter-wellfound`, con 17 tests contra los 5 fixtures de Fase 0
+(sin red). Decisiones que no estaban en el documento original:
+
+- `extractWithCascade` devuelve `{ data, strategy }`, no solo `data` — así
+  `extraction.strategy` (sección 4.1) se puede poblar sin volver a adivinar
+  qué estrategia ganó.
+- Un 403 de Cloudflare en `CompanyProfileParser` se distingue explícitamente
+  de `parse_failed`: se chequea el `<title>Security Check | Wellfound</title>`
+  del challenge *antes* de intentar la cascada, y devuelve `blocked`
+  directamente (sección 6.1, AD-09).
+- `RoleListingParser` valida cada empresa contra `CompanySchema` completo,
+  con `market`/`websiteUrl`/`founders` en `null`/`[]` y listados en
+  `extraction.missing` — no inventa esos campos, los deja pendientes para
+  `JobDetailParser`/`CompanyProfileParser`.
+- `humanizeCompanySize` solo tiene confirmado `SIZE_1_10` → `"1-10
+  Employees"` contra un fixture real; el resto de tamaños se deriva del
+  mismo patrón (`SIZE_<min>_<max|PLUS>`) en vez de una tabla inventada, y si
+  no matchea devuelve el enum crudo.
+- `RoleListingParser.parseRoleListing` devuelve `Company[]` completos, no
+  `{ slugs, hasMore }` como pide la firma de `JobSourcePort.listCompanies`
+  (sección 5) — reconciliar ambas formas queda para `WellfoundAdapter` en la
+  Fase 4, que decide qué exponer por el puerto y qué guardar directo en el
+  repositorio.
 
 ---
 
