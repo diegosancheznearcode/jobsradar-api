@@ -11,9 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # La versión de pnpm viene del campo "packageManager" de package.json
+      # (pnpm@11.24.0) — no se repite aquí para evitar ERR_PNPM_BAD_PM_VERSION
+      # por versiones en conflicto.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - uses: actions/setup-node@v4
         with:
