@@ -1,0 +1,55 @@
+import { CompanySchema } from "@jobsradar/contracts";
+import type { ExtractionError, Result, SearchRepositoryPort } from "@jobsradar/domain";
+import type { CascadeResult, JobDetailResult } from "@jobsradar/adapter-wellfound";
+
+// Cola job-detail — ver ARCHITECTURE.md sección 10. GET /jobs/{id}, SIN
+// sesión (Fase 0) — es la vía alternativa para market/website cuando
+// todavía no hay sesión válida para company-detail, o para confirmarlos
+// de forma redundante. JobDetailParser no está detrás de JobSourcePort
+// (el puerto solo define listCompanies/getCompany) — este processor
+// depende de @jobsradar/adapter-wellfound directamente para esto,
+// consistente con lo documentado en ARCHITECTURE.md sección 9.
+
+export interface JobDetailJobData {
+  searchId: string;
+  slug: string;
+  jobUrl: string;
+}
+
+export interface JobDetailDeps {
+  fetchJobDetail: (url: string) => Promise<Result<CascadeResult<JobDetailResult>, ExtractionError>>;
+  repository: SearchRepositoryPort;
+  log?: (message: string) => void;
+}
+
+export async function processJobDetail(data: JobDetailJobData, deps: JobDetailDeps): Promise<void> {
+  const log = deps.log ?? console.error;
+
+  const result = await deps.fetchJobDetail(data.jobUrl);
+  if (!result.ok) {
+    log(`[job-detail] slug=${data.slug} url=${data.jobUrl} error=${result.error.kind}`);
+    return;
+  }
+
+  const { company } = result.value.data;
+  const partial = CompanySchema.parse({
+    slug: data.slug,
+    name: company.name,
+    pitch: null,
+    size: null,
+    market: company.market,
+    websiteUrl: company.websiteUrl,
+    wellfoundUrl: `https://wellfound.com/company/${data.slug}`,
+    founders: [],
+    jobs: [],
+    extraction: {
+      strategy: result.value.strategy,
+      confidence: 0.5,
+      missing: ["pitch", "size", "founders"],
+    },
+  });
+
+  // rank se ignora, igual que en company-detail: search-list ya insertó
+  // la fila real en search_results.
+  await deps.repository.attachCompany(data.searchId, partial, 0);
+}

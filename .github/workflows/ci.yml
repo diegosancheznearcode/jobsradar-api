@@ -8,6 +8,28 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+
+    # packages/repository-postgres y apps/worker prueban contra Postgres
+    # real (Fase 5) — sección 11 no cubre SQL explícitamente, y mockear
+    # postgres.js no probaría el merge/idempotencia/caché de verdad.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jobsradar
+          POSTGRES_PASSWORD: jobsradar
+          POSTGRES_DB: jobsradar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://jobsradar:jobsradar@localhost:5432/jobsradar
+
     steps:
       - uses: actions/checkout@v4
 

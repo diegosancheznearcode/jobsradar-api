@@ -34,7 +34,7 @@ function testHttpClient(storageStatePath?: string) {
 }
 
 describe("WellfoundAdapter.listCompanies", () => {
-  it("devuelve los slugs y hasMore contra el fixture real de listado (sin sesión)", async () => {
+  it("devuelve Company[] completos (no solo slugs) y hasMore, contra el fixture real de listado (sin sesión)", async () => {
     server.use(http.get("https://wellfound.com/role/r/backend-engineer", () => HttpResponse.text(roleListingHtml)));
 
     const adapter = new WellfoundAdapter(testHttpClient(), new CircuitBreaker());
@@ -45,8 +45,12 @@ describe("WellfoundAdapter.listCompanies", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.value.slugs).toContain("vaulfi-1");
-    expect(result.value.slugs).toHaveLength(20);
+    const slugs = result.value.companies.map((c) => c.slug);
+    expect(slugs).toContain("vaulfi-1");
+    expect(result.value.companies).toHaveLength(20);
+    const vaulfi = result.value.companies.find((c) => c.slug === "vaulfi-1");
+    expect(vaulfi?.name).toBe("VaulFi");
+    expect(vaulfi?.pitch).toBe("The Stablecoin Neobank for Emerging Markets");
     expect(result.value.hasMore).toBe(true);
   });
 });

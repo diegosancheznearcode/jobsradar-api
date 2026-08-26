@@ -22,7 +22,7 @@ export class WellfoundAdapter implements JobSourcePort {
   async listCompanies(
     criteria: SearchCriteria,
     page: number,
-  ): Promise<Result<{ slugs: string[]; hasMore: boolean }, ExtractionError>> {
+  ): Promise<Result<{ companies: Company[]; hasMore: boolean }, ExtractionError>> {
     if (this.breaker.isOpen()) return err(this.breaker.getLastError()!);
 
     const url = buildRoleListingUrl(criteria, page);
@@ -37,7 +37,7 @@ export class WellfoundAdapter implements JobSourcePort {
     if (!parsed.ok) return err(parsed.error);
 
     const { companies, hasMore } = parsed.value.data;
-    return ok({ slugs: companies.map((c) => c.slug), hasMore });
+    return ok({ companies, hasMore });
   }
 
   async getCompany(slug: string): Promise<Result<Company, ExtractionError>> {

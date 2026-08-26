@@ -12,10 +12,8 @@ import { humanizeCompanySize } from "../companySize.js";
 //
 // El listado NO trae market/websiteUrl/founders — quedan en null y se
 // listan en extraction.missing, tal como exige la regla de nulabilidad de
-// la sección 4.1. `JobSourcePort.listCompanies` (sección 5) solo declara
-// { slugs, hasMore } en su firma; reconciliar esa firma angosta con estos
-// Company parciales es una decisión de WellfoundAdapter (Fase 4), no de
-// este parser.
+// la sección 4.1. `JobSourcePort.listCompanies` (sección 5) devuelve estos
+// Company parciales directamente (ampliado en Fase 5 — ver ARCHITECTURE.md).
 
 export interface RoleListingPage {
   companies: Company[];

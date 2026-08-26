@@ -4,10 +4,16 @@ import type { ExtractionError, Result } from "./result.js";
 // Puertos — ver ARCHITECTURE.md sección 5.
 
 export interface JobSourcePort {
+  // El documento (sección 5) define esto como { slugs, hasMore } — se
+  // amplió a Company[] en Fase 5: el listado ya trae nombre/pitch/tamaño/
+  // roles destacados sin sesión (Fase 0), y `slug` ya es un campo de
+  // Company, así que no se pierde nada. Devolver solo slugs obligaba a
+  // pedir /company/{slug} (con sesión) de nuevo para datos que ya se
+  // tenían gratis.
   listCompanies(
     criteria: SearchCriteria,
     page: number,
-  ): Promise<Result<{ slugs: string[]; hasMore: boolean }, ExtractionError>>;
+  ): Promise<Result<{ companies: Company[]; hasMore: boolean }, ExtractionError>>;
 
   getCompany(slug: string): Promise<Result<Company, ExtractionError>>;
 }

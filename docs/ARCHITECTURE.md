@@ -176,10 +176,13 @@ como fixture candidata y sigue.
 
 ```ts
 export interface JobSourcePort {
+  // Ampliado en Fase 5: devuelve Company[] (parciales, ver sección 6.1
+  // resultado de Fase 3), no solo slugs — el listado ya trae nombre/pitch/
+  // tamaño/roles destacados sin sesión, y `slug` ya es un campo de Company.
   listCompanies(
     criteria: SearchCriteria,
     page: number
-  ): Promise<Result<{ slugs: string[]; hasMore: boolean }, ExtractionError>>;
+  ): Promise<Result<{ companies: Company[]; hasMore: boolean }, ExtractionError>>;
 
   getCompany(slug: string): Promise<Result<Company, ExtractionError>>;
 }
@@ -291,39 +294,47 @@ mantener la conexión abierta detrás de cualquier proxy/load balancer.
 ## 8. Esquema de base de datos
 
 ```sql
+-- Ajustado en Fase 5 respecto a la versión original de esta sección — ver
+-- el resultado de Fase 5 más abajo para el porqué de cada cambio
+-- (target_companies, extraction_*, profile_url/linkedin_url).
 CREATE TABLE searches (
-  id           UUID PRIMARY KEY,
-  job_title    TEXT NOT NULL,
-  location     TEXT,
-  remote_only  BOOLEAN NOT NULL DEFAULT TRUE,
-  status       TEXT NOT NULL,          -- queued|running|paused|done|failed
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_title        TEXT NOT NULL,
+  location         TEXT,
+  remote_only      BOOLEAN NOT NULL DEFAULT TRUE,
+  target_companies INT NOT NULL,
+  status           TEXT NOT NULL,          -- queued|running|paused|done|failed
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE companies (
-  id            UUID PRIMARY KEY,
-  slug          TEXT UNIQUE NOT NULL,
-  name          TEXT NOT NULL,
-  pitch         TEXT,
-  size          TEXT,
-  market        TEXT,
-  website_url   TEXT,
-  wellfound_url TEXT NOT NULL,
-  scraped_at    TIMESTAMPTZ NOT NULL
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug                  TEXT UNIQUE NOT NULL,
+  name                  TEXT NOT NULL,
+  pitch                 TEXT,
+  size                  TEXT,
+  market                TEXT,
+  website_url           TEXT,
+  wellfound_url         TEXT NOT NULL,
+  extraction_strategy   TEXT NOT NULL,     -- json_ld | hydrated_state | css
+  extraction_confidence REAL NOT NULL,
+  extraction_missing    TEXT[] NOT NULL DEFAULT '{}',
+  scraped_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE founders (
-  id           UUID PRIMARY KEY,
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name         TEXT NOT NULL,
   role         TEXT,
-  contact_url  TEXT,                   -- NUNCA email
+  profile_url  TEXT,                   -- NUNCA email
+  linkedin_url TEXT,                   -- NUNCA email
   source       TEXT NOT NULL,
-  fetched_at   TIMESTAMPTZ NOT NULL
+  fetched_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE job_postings (
-  id          UUID PRIMARY KEY,
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   external_id TEXT NOT NULL,
   title       TEXT NOT NULL,
@@ -355,11 +366,12 @@ Dos repositorios independientes, no un monorepo (AD-11):
 jobsradar-api/                  # backend — repo separado
 ├── apps/
 │   ├── api/                    # Fastify — BFF, SSE, exportación
-│   └── worker/                 # Consumidores BullMQ
+│   └── worker/                 # Consumidores BullMQ — processors/ (sección 10)
 ├── packages/
 │   ├── domain/                 # Value Objects, entidades, puertos, Result — interno, no se publica
 │   ├── contracts/               # Esquemas Zod — publicado como @jobsradar/contracts
-│   └── adapter-wellfound/       # implementa JobSourcePort — parsers + HttpClient/BrowserClient (sección 6)
+│   ├── adapter-wellfound/       # implementa JobSourcePort — parsers + HttpClient/BrowserClient (sección 6)
+│   └── repository-postgres/     # implementa SearchRepositoryPort — postgres.js, sin ORM (sección 8)
 └── docker-compose.yml          # postgres, redis, api, worker
 
 jobsradar-web/                  # frontend — repo separado, también hexagonal (AD-08)
@@ -431,6 +443,19 @@ igual, ya que ese login ocurre dentro del mismo proceso.
 
 Idempotencia: clave `(searchId, slug)`. Un reintento nunca duplica una fila.
 
+**Implementación (Fase 5):** cada cola tiene un processor en
+`apps/worker/src/processors/` como función pura con dependencias inyectadas
+(`adapter`, `repository`, funciones `enqueue*`) — `apps/worker/src/index.ts`
+solo los conecta a `Worker`/`Queue` de BullMQ reales. `search-list` deriva
+`rank` de `repository.getSnapshot(searchId).progress.found` (no un contador
+aparte) y encola `company-detail` por cada empresa nueva; solo encola la
+página siguiente si `hasMore` y todavía no se llegó a `target_companies`.
+`company-detail`/`job-detail` pasan `rank: 0` a `attachCompany` — se ignora
+porque `search-list` ya insertó la fila real en `search_results`
+(`ON CONFLICT DO NOTHING`). Ninguno relanza automáticamente ante `blocked`:
+se loguea y la búsqueda queda parcial en esa empresa (sección 1.3, "degradar
+sin fallar"), no reintenta contra un bloqueo que no se va a resolver solo.
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
@@ -455,7 +480,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 2 | ✅ Completada (2026-08-25) — `packages/domain` + `packages/contracts` con tests | 3, 4 |
 | 3 | ✅ Completada (2026-08-25) — Parsers contra fixtures (sin red), en `packages/adapter-wellfound` | 4 |
 | 4 | ✅ Completada (2026-08-26) — `WellfoundAdapter` + política de ritmo, todo mockeado (sin red real, ver sección 6.2 resultado) | 5 |
-| 5 | Colas + repositorio + caché | 6 |
+| 5 | ✅ Completada (2026-08-26) — Colas + repositorio + caché, contra Postgres/Redis reales (ver sección 8 resultado) | 6 |
 | 6 | API BFF + SSE | 7 |
 | 7 | Frontend React hexagonal (domain/application/infrastructure/ui, sección 9.1) + tabla + exportación | — |
 | 8 | Observabilidad + alerta de selectores rotos | — |
@@ -586,6 +611,47 @@ cuando el usuario decida hacerla.
   website). No incluye `jobs`: esos vienen del listado o del detalle de
   vacante, y combinarlos con lo que da el perfil es trabajo del
   repositorio/caché (Fase 5), no del adaptador.
+
+### Fase 5 — resultado (2026-08-26)
+
+`packages/repository-postgres` probado con Postgres real (no mockeado —
+sección 11 no cubre SQL, y mockear postgres.js no prueba el merge/
+idempotencia/caché de verdad). Encontré tres huecos entre la sección 8
+(SQL) y la sección 4.1 (Zod), los tres del mismo tipo — el SQL no tenía
+dónde guardar algo que el esquema Zod exige — resueltos junto con el
+usuario:
+
+- `searches.target_companies` no existía; hacía falta para reconstruir
+  `progress.target` en `getSnapshot`.
+- `founders.contact_url` (una sola columna) se reemplazó por
+  `profile_url` + `linkedin_url`, que es lo que `FounderSchema` en
+  realidad define y lo que `CompanyProfileParser` ya devuelve por
+  separado.
+- `companies` no tenía dónde persistir `extraction.strategy/confidence/
+  missing`, que `CompanySchema` exige como campo requerido — se agregaron
+  `extraction_strategy`/`extraction_confidence`/`extraction_missing`.
+
+`JobSourcePort.listCompanies` también cambió (con el usuario) de
+`{ slugs, hasMore }` a `{ companies: Company[], hasMore }` — ver sección 5.
+
+Otras decisiones:
+
+- `attachCompany` hace *merge no destructivo*: `COALESCE(EXCLUDED.campo,
+  companies.campo)` en el `UPSERT`, así una llamada posterior con datos
+  parciales (ej. `search-list` reprocesando) nunca pisa con `null` lo que
+  una llamada anterior más completa (ej. `company-detail`) ya sabía.
+  Confirmado con un test que ataca la tabla en ese orden.
+- Founders se reemplazan (`DELETE` + `INSERT`) solo cuando la llamada trae
+  founders de verdad — una llamada sin founders no borra los que ya había.
+- `job-detail` no pasa por `JobSourcePort` (el puerto no lo declara,
+  sección 5): el processor depende de `@jobsradar/adapter-wellfound`
+  directamente para `parseJobDetail`, tal como la sección 9 ya preveía
+  ("para que `apps/api` también pueda importarlo").
+- Los tests de Postgres corren con `fileParallelism: false` en
+  `apps/worker` — varios archivos de test comparten la misma base y hacen
+  `TRUNCATE` en `beforeEach`; en paralelo, un archivo borraba los datos
+  que otro acababa de insertar. El CI ahora levanta un servicio Postgres
+  real (ver `.github/workflows/ci.yml`).
 
 ---
 

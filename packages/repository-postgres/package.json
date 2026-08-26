@@ -1,30 +1,24 @@
 {
-  "name": "@jobsradar/worker",
+  "name": "@jobsradar/repository-postgres",
   "private": true,
   "version": "0.1.0",
-  "description": "Consumidores BullMQ (search-list, job-detail, company-detail). Ver ARCHITECTURE.md sección 10.",
+  "description": "SearchRepositoryPort con postgres.js, sin ORM (AD-07). Ver ARCHITECTURE.md sección 8.",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"no lint configured yet\"",
     "test": "vitest run"
   },
   "dependencies": {
-    "@jobsradar/adapter-wellfound": "workspace:*",
     "@jobsradar/contracts": "workspace:*",
     "@jobsradar/domain": "workspace:*",
-    "@jobsradar/repository-postgres": "workspace:*",
-    "bullmq": "^5.13.0",
-    "ioredis": "^5.4.0"
+    "postgres": "^3.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
-    "msw": "^2.15.0",
-    "postgres": "^3.4.9",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^4.1.0"
   }

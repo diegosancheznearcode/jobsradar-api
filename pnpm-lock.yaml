@@ -35,12 +35,18 @@ importers:
 
   apps/worker:
     dependencies:
+      '@jobsradar/adapter-wellfound':
+        specifier: workspace:*
+        version: link:../../packages/adapter-wellfound
       '@jobsradar/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@jobsradar/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@jobsradar/repository-postgres':
+        specifier: workspace:*
+        version: link:../../packages/repository-postgres
       bullmq:
         specifier: ^5.13.0
         version: 5.81.3
@@ -51,12 +57,21 @@ importers:
       '@types/node':
         specifier: ^22.7.0
         version: 22.20.1
+      msw:
+        specifier: ^2.15.0
+        version: 2.15.0(@types/node@22.20.1)(typescript@5.9.3)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
       tsx:
         specifier: ^4.19.0
         version: 4.23.12
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.11(@types/node@22.20.1)(msw@2.15.0(@types/node@22.20.1)(typescript@5.9.3))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(tsx@4.23.12))
 
   packages/adapter-wellfound:
     dependencies:
@@ -110,6 +125,28 @@ importers:
       zod:
         specifier: ^3.23.0
         version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.11(@types/node@22.20.1)(msw@2.15.0(@types/node@22.20.1)(typescript@5.9.3))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(tsx@4.23.12))
+
+  packages/repository-postgres:
+    dependencies:
+      '@jobsradar/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@jobsradar/domain':
+        specifier: workspace:*
+        version: link:../domain
+      postgres:
+        specifier: ^3.4.0
+        version: 3.4.9
     devDependencies:
       '@types/node':
         specifier: ^22.7.0
@@ -975,6 +1012,10 @@ packages:
   postcss@8.5.26:
     resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
     engines: {node: ^10 || ^12 || >=14}
+
+  postgres@3.4.9:
+    resolution: {integrity: sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw==}
+    engines: {node: '>=12'}
 
   process-warning@4.0.1:
     resolution: {integrity: sha512-3c2LzQ3rY9d0hc1emcsHhfT9Jwz0cChib/QN89oME2R451w5fy3f0afAhERFZAwrbDU43wk12d0ORBpDVME50Q==}
@@ -2036,6 +2077,8 @@ snapshots:
       nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  postgres@3.4.9: {}
 
   process-warning@4.0.1: {}
 
