@@ -10,10 +10,15 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"no lint configured yet\"",
-    "test": "echo \"no tests yet — Fase 2\""
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@jobsradar/contracts": "workspace:*",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.0"
   }
 }
