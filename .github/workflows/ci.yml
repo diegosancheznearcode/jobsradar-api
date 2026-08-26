@@ -69,6 +69,18 @@ jobs:
 
       - run: pnpm test
 
+  # apps/api y apps/worker se despliegan como imágenes Docker (docker-compose.yml,
+  # sección 9), pero nada más en este workflow ejecuta `docker build` — así
+  # pasaron desapercibidos, durante varias fases, dos Dockerfiles que nunca
+  # hubieran buildeado (lockfile no copiado, paquetes intermedios faltantes,
+  # ver ARCHITECTURE.md Fase 9). Este job cierra ese hueco.
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f apps/api/Dockerfile -t jobsradar-api:ci .
+      - run: docker build -f apps/worker/Dockerfile -t jobsradar-worker:ci .
+
   publish-contracts:
     needs: build-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'

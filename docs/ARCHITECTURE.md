@@ -555,6 +555,13 @@ sin relación con el rename pero descubiertos al auditarlos por la mención a
   `.dockerignore` excluyendo `node_modules`, `dist`, `fixtures` y demás
   archivos que no hacen falta para el build.
 
+Ninguno de estos tres bugs lo hubiera atrapado el CI tal como estaba: corre
+`pnpm build/test`, nunca `docker build`, así que un Dockerfile roto podía
+quedar así indefinidamente sin que nada lo marcara. Se agrega un job
+`docker-build` (independiente de `build-test`, sin servicios de Postgres/Redis)
+que construye ambas imágenes en cada push/PR — no las publica ni las corre,
+solo confirma que el `docker build` no rompe.
+
 ---
 
 ## 10. Colas
