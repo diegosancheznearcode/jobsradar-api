@@ -27,7 +27,7 @@ describe("parseCompanyProfile", () => {
     if (!result.ok) throw new Error("unreachable");
     expect(result.value.strategy).toBe("hydrated_state");
 
-    const { founders, market, websiteUrl } = result.value.data;
+    const { founders, market, websiteUrl, slug, name, pitch, size } = result.value.data;
     expect(founders).toHaveLength(1);
     expect(founders[0]).toMatchObject({
       name: "Karim Khattaby",
@@ -38,6 +38,11 @@ describe("parseCompanyProfile", () => {
     });
     expect(websiteUrl).toBe("https://vaulfi.com");
     expect(market).toContain("Banking");
+
+    expect(slug).toBe("vaulfi-1");
+    expect(name).toBe("VaulFi");
+    expect(pitch).toBe("The Stablecoin Neobank for Emerging Markets");
+    expect(size).toBe("1-10 Employees");
   });
 
   it("también extrae founders desde el perfil general (no solo /people)", () => {

@@ -4,6 +4,7 @@ import type { ExtractionError, Result } from "@jobsradar/domain";
 import { extractWithCascade } from "../cascade.js";
 import type { CascadeResult } from "../cascade.js";
 import { getApolloState, parseNextData, resolveRef } from "../htmlExtractors.js";
+import { humanizeCompanySize } from "../companySize.js";
 
 // /role/r/{rol} -> slugs + name/size/pitch/jobs destacados. Ver
 // ARCHITECTURE.md sección 6 y el hallazgo de Fase 0: gana `hydrated_state`
@@ -111,16 +112,4 @@ function toJobPosting(job: Record<string, any>): JobPosting {
     applyUrl: `https://wellfound.com/jobs/${job.id}-${job.slug}`,
     postedAt: typeof job.liveStartAt === "number" ? new Date(job.liveStartAt * 1000) : null,
   };
-}
-
-// Solo se confirmó "SIZE_1_10" -> "1-10 Employees" contra un fixture real en
-// Fase 0. El resto sigue el mismo patrón evidente (SIZE_<min>_<max|PLUS>) en
-// vez de una tabla de valores inventados; si no matchea el patrón, se
-// devuelve el enum crudo tal cual — nunca un texto inventado.
-function humanizeCompanySize(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const match = raw.match(/^SIZE_(\d+)_(\d+|PLUS)$/);
-  if (!match) return raw;
-  const [, min, maxToken] = match;
-  return maxToken === "PLUS" ? `${min}+ Employees` : `${min}-${maxToken} Employees`;
 }

@@ -5,14 +5,24 @@ import type { ExtractionError, Result } from "@jobsradar/domain";
 import { extractWithCascade, isCloudflareChallenge } from "../cascade.js";
 import type { CascadeResult } from "../cascade.js";
 import { getApolloState, parseNextData, resolveRef } from "../htmlExtractors.js";
+import { humanizeCompanySize } from "../companySize.js";
 
 // /company/{slug} (o /company/{slug}/people) -> founders + market/website.
 // Ver ARCHITECTURE.md sección 6 y el hallazgo de Fase 0: gana
 // `hydrated_state`, pero solo con sesión autenticada — sin ella, Cloudflare
 // devuelve un challenge que hay que reconocer como `blocked`, no
 // `parse_failed` (sección 6.1, AD-09).
+//
+// name/slug/pitch/size también están disponibles acá (el mismo nodo
+// Startup los trae), no solo en RoleListingParser — WellfoundAdapter
+// (Fase 4) los usa para armar un Company completo con una sola petición
+// cuando ya conoce el slug, sin depender del listado.
 
 export interface CompanyProfileResult {
+  slug: string;
+  name: string;
+  pitch: string | null;
+  size: string | null;
   founders: Founder[];
   market: string | null;
   websiteUrl: string | null;
@@ -64,6 +74,10 @@ function extractFromHydratedState(html: string): CompanyProfileResult | null {
     .join(", ") || null;
 
   return {
+    slug: startup.slug,
+    name: startup.name,
+    pitch: startup.highConcept ?? null,
+    size: humanizeCompanySize(startup.companySize),
     founders,
     market,
     websiteUrl: startup.companyUrl ?? null,

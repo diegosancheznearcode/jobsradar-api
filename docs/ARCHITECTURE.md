@@ -249,7 +249,7 @@ que el parser esté roto.
 |---|---|
 | Concurrencia | 1 worker al inicio, máximo 2 |
 | Espaciado | 6-10 s con jitter aleatorio |
-| Reintentos | 3, backoff exponencial + jitter |
+| Reintentos | 3, backoff exponencial + jitter — solo ante `rate_limited` (429/5xx/red). Un `blocked` nunca se reintenta, se propaga directo (Fase 4) |
 | Circuit breaker | Pausa toda la búsqueda al primer captcha |
 | Sesión | `storageState` de Playwright en disco (cookies, incluyendo `cf_clearance`), login manual una vez — **obligatoria** para pasar el challenge de Cloudflare en `/company/{slug}` (403 confirmado en Fase 0 sin ella; 200 OK confirmado con ella, vía `fetch` plano, sin necesidad de navegador por request). `cf_clearance` tiene un TTL desconocido y posiblemente atado a IP/fingerprint — pendiente medir en Fase 4 cuánto dura y si sobrevive un cambio de IP del worker; al expirar, tratar como `blocked` y disparar una renovación de sesión vía `BrowserClient` |
 
@@ -454,7 +454,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 1 | ✅ Completada (2026-08-25) — Repos `jobsradar-api` + `jobsradar-web` + Docker Compose (backend) + CI en cada uno | 2 |
 | 2 | ✅ Completada (2026-08-25) — `packages/domain` + `packages/contracts` con tests | 3, 4 |
 | 3 | ✅ Completada (2026-08-25) — Parsers contra fixtures (sin red), en `packages/adapter-wellfound` | 4 |
-| 4 | `WellfoundAdapter` + política de ritmo | 5 |
+| 4 | ✅ Completada (2026-08-26) — `WellfoundAdapter` + política de ritmo, todo mockeado (sin red real, ver sección 6.2 resultado) | 5 |
 | 5 | Colas + repositorio + caché | 6 |
 | 6 | API BFF + SSE | 7 |
 | 7 | Frontend React hexagonal (domain/application/infrastructure/ui, sección 9.1) + tabla + exportación | — |
@@ -539,6 +539,53 @@ Los 3 parsers y la cascada genérica quedaron implementados en
   (sección 5) — reconciliar ambas formas queda para `WellfoundAdapter` en la
   Fase 4, que decide qué exponer por el puerto y qué guardar directo en el
   repositorio.
+
+### Fase 4 — resultado (2026-08-26)
+
+Implementada **completamente mockeada, sin un solo request real a
+wellfound.com** (decisión explícita del usuario) — todos los tests de
+`HttpClient`/`BrowserClient`/`WellfoundAdapter` corren contra MSW o contra
+fakes inyectados, nunca contra la red. Consecuencia directa: el issue de
+medir el TTL real de `cf_clearance` **no se cerró** — el mecanismo para
+reaccionar a una sesión vencida existe (ver más abajo), pero la medición
+empírica en sí requiere una sesión real en vivo, que queda pendiente para
+cuando el usuario decida hacerla.
+
+- `HttpClient`: espaciado 6-10s + jitter entre requests (se salta antes del
+  primero), 3 reintentos con backoff exponencial — pero **solo** para
+  `rate_limited` (429, 5xx, fallos de red). Un `blocked` (403 +
+  `Cf-Mitigated`) nunca se reintenta: se devuelve de inmediato para que el
+  circuit breaker se abra "al primer captcha" (AD-09), no después de
+  gastar los 3 reintentos.
+- Cookies de sesión: `HttpClient` no las manda por default — cada `get()`
+  pide `{ withSession: true }` explícitamente, y solo entonces lee el
+  `storageState.json` (formato Playwright) y arma el header `Cookie`.
+  Confirmado en Fase 0: solo `/company/{slug}` lo necesita.
+- `BrowserClient`: **no depende del paquete `playwright`**. `launch()` se
+  inyecta desde quien construya el adaptador real (el worker, en una fase
+  futura) — así este paquete no necesita Chromium instalado para
+  typecheck/build/test. Nunca automatiza credenciales: `ensureSession`/
+  `renewSession` abren el navegador y esperan (`waitForURL`) a que una
+  persona complete el login a mano, igual que se hizo manualmente en
+  Fase 0. El patrón `postLoginUrlPattern` usado por default es una
+  suposición razonable, **no confirmada contra Wellfound real** — hay que
+  validarlo la primera vez que esto corra en vivo.
+- `CircuitBreaker`: estado `closed`/`open` en memoria. Solo `blocked` lo
+  abre (no `rate_limited`, que ya se maneja con reintentos, ni
+  `not_found`/`parse_failed`, que son errores de una empresa puntual, no
+  del acceso global). Mientras está abierto, `WellfoundAdapter` devuelve el
+  mismo error sin tocar la red — confirmado con un test que cuenta
+  requests. Quién llama a `renewSession()` y luego `breaker.reset()`
+  después de un bloqueo es una decisión de orquestación que queda para la
+  cola `company-detail` en la Fase 5 (sección 10 ya lo preveía: "cae a 1 y
+  dispara renovación de sesión si empieza a recibir 403"), no de
+  `WellfoundAdapter` mismo.
+- `WellfoundAdapter.getCompany` arma un `Company` completo desde una sola
+  petición al perfil (`CompanyProfileParser`, extendido en esta fase para
+  también traer `name`/`pitch`/`size` — antes solo daba founders/market/
+  website). No incluye `jobs`: esos vienen del listado o del detalle de
+  vacante, y combinarlos con lo que da el perfil es trabajo del
+  repositorio/caché (Fase 5), no del adaptador.
 
 ---
 
