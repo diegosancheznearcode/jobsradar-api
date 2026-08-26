@@ -441,6 +441,50 @@ y la renovación periódica de sesión — el scraping de cada empresa corre por
 `fetch` reutilizando esa sesión. El worker usa la imagen oficial de Playwright
 igual, ya que ese login ocurre dentro del mismo proceso.
 
+### Fase 7 — resultado (2026-08-26)
+
+`domain/index.ts` termina re-exportando no solo los tipos de
+`@jobsradar/contracts` sino también los esquemas Zod (`SearchCriteriaSchema`,
+`SearchEventSchema`) — el formulario valida lo que manda con el primero, y
+`SseAdapter` valida en runtime cada frame SSE con el segundo antes de
+pasarlo a `application/` (un mensaje que no matchea se ignora, no tira la
+conexión).
+
+`application/useSearch.ts` reemplaza el `useMutation` placeholder de Fase 1
+por una máquina de estados completa (`idle → starting → running →
+paused|done|error`) que consume los 6 tipos de `SearchEvent` de la sección
+7.1 (`progress`, `company.found`, `company.failed`, `paused`, `done`,
+`error`) vía una función pura `applySearchEvent`, testeada aparte del hook.
+`ui/` (`SearchForm`, `ResultsTable`, `StatusPanel`) solo ve ese estado ya
+acumulado — nunca `SearchEvent` crudo ni `SearchPort.subscribe`
+directamente.
+
+Dos bugs reales encontrados en esta fase, ninguno relacionado con la lógica
+de negocio:
+
+- `@tanstack/react-table` se actualizó a v9 (que rediseñó toda la API:
+  `useTable`/`createTableHook`) sin que el `package.json` cambiara de rango
+  — v9 sigue publicando la API v8 (`useReactTable`/`createColumnHelper`/
+  `getCoreRowModel`) bajo el entrypoint `@tanstack/react-table/legacy`,
+  soporte oficial de migración. Ese shim además tiene un problema de
+  varianza en `TValue` al tipar un array de columnas heterogéneas por
+  fuera de la llamada a `useLegacyTable()` — la única forma que compiló
+  fue declarar el array inline y castearlo con `as unknown as
+  LegacyColumnDef<Company>[]`; cada columna individual sigue
+  type-checkeada contra `Company`, el cast solo destraba la unión final.
+- Sin `test.globals: true` en `vite.config.ts`, `@testing-library/react`
+  nunca encuentra un `afterEach` global para autoregistrar su limpieza del
+  DOM entre tests — los `render()` de un archivo se iban acumulando y las
+  queries por rol/texto empezaban a matchear más de un elemento. Se agregó
+  un `afterEach(cleanup)` explícito en `src/test-setup.ts`.
+
+30 tests (RTL + MSW + un doble mínimo de `EventSource`, que jsdom no
+implementa) cubriendo formulario, tabla, panel de estado, el hook de
+búsqueda y los 3 adaptadores de infraestructura. No se verificó
+visualmente en un navegador real — este entorno no tiene esa herramienta;
+sí se confirmó que el build de producción compila, que el dev server sirve
+y transforma todos los módulos sin error, y que el conjunto de tests pasa.
+
 ---
 
 ## 10. Colas
@@ -496,7 +540,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 4 | ✅ Completada (2026-08-26) — `WellfoundAdapter` + política de ritmo, todo mockeado (sin red real, ver sección 6.2 resultado) | 5 |
 | 5 | ✅ Completada (2026-08-26) — Colas + repositorio + caché, contra Postgres/Redis reales (ver sección 8 resultado) | 6 |
 | 6 | ✅ Completada (2026-08-26) — API BFF + SSE (ver sección 7 resultado) | 7 |
-| 7 | Frontend React hexagonal (domain/application/infrastructure/ui, sección 9.1) + tabla + exportación | — |
+| 7 | ✅ Completada (2026-08-26) — Frontend React hexagonal + tabla + exportación (ver sección 9.1 resultado) | — |
 | 8 | ✅ Completada (2026-08-26) — Observabilidad + alerta de selectores rotos (ver sección 11 resultado) | — |
 
 ### Fase 0 — checklist concreto (completado)
