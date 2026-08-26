@@ -5,6 +5,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CircuitBreaker } from "./CircuitBreaker.js";
+import { ExtractionMetrics } from "./ExtractionMetrics.js";
 import { HttpClient } from "./HttpClient.js";
 import { WellfoundAdapter } from "./WellfoundAdapter.js";
 
@@ -33,11 +34,20 @@ function testHttpClient(storageStatePath?: string) {
   });
 }
 
+function testAdapter(
+  http: HttpClient,
+  breaker: CircuitBreaker = new CircuitBreaker(),
+  metrics: ExtractionMetrics = new ExtractionMetrics(),
+  log: (message: string) => void = vi.fn(),
+) {
+  return new WellfoundAdapter(http, breaker, metrics, log);
+}
+
 describe("WellfoundAdapter.listCompanies", () => {
   it("devuelve Company[] completos (no solo slugs) y hasMore, contra el fixture real de listado (sin sesión)", async () => {
     server.use(http.get("https://wellfound.com/role/r/backend-engineer", () => HttpResponse.text(roleListingHtml)));
 
-    const adapter = new WellfoundAdapter(testHttpClient(), new CircuitBreaker());
+    const adapter = testAdapter(testHttpClient());
     const result = await adapter.listCompanies(
       { jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 50 },
       1,
@@ -72,7 +82,7 @@ describe("WellfoundAdapter.getCompany", () => {
       }),
     );
 
-    const adapter = new WellfoundAdapter(testHttpClient(storageStatePath), new CircuitBreaker());
+    const adapter = testAdapter(testHttpClient(storageStatePath));
     const result = await adapter.getCompany("vaulfi-1");
 
     expect(result.ok).toBe(true);
@@ -93,7 +103,7 @@ describe("WellfoundAdapter.getCompany", () => {
     );
 
     const breaker = new CircuitBreaker();
-    const adapter = new WellfoundAdapter(testHttpClient(), breaker);
+    const adapter = testAdapter(testHttpClient(), breaker);
 
     const first = await adapter.getCompany("vaulfi-1");
     expect(first.ok).toBe(false);
@@ -124,7 +134,7 @@ describe("WellfoundAdapter.getCompany", () => {
     );
 
     const breaker = new CircuitBreaker();
-    const adapter = new WellfoundAdapter(testHttpClient(), breaker);
+    const adapter = testAdapter(testHttpClient(), breaker);
 
     await adapter.getCompany("vaulfi-1");
     expect(breaker.isOpen()).toBe(true);
@@ -135,5 +145,63 @@ describe("WellfoundAdapter.getCompany", () => {
     );
     expect(listResult.ok).toBe(false);
     expect(listingRequestCount).toBe(0);
+  });
+});
+
+describe("WellfoundAdapter — métricas de extracción (Fase 8)", () => {
+  it("blocked NO cuenta como extracción vacía (no es un selector roto)", async () => {
+    server.use(
+      http.get("https://wellfound.com/company/vaulfi-1", () =>
+        HttpResponse.text("challenge", { status: 403, headers: { "cf-mitigated": "challenge" } }),
+      ),
+    );
+
+    const metrics = new ExtractionMetrics();
+    const adapter = testAdapter(testHttpClient(), new CircuitBreaker(), metrics);
+    await adapter.getCompany("vaulfi-1");
+
+    expect(metrics.sampleSize).toBe(0);
+  });
+
+  it("un parse exitoso cuenta como éxito", async () => {
+    server.use(http.get("https://wellfound.com/role/r/backend-engineer", () => HttpResponse.text(roleListingHtml)));
+
+    const metrics = new ExtractionMetrics();
+    const adapter = testAdapter(testHttpClient(), new CircuitBreaker(), metrics);
+    await adapter.listCompanies({ jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 50 }, 1);
+
+    expect(metrics.sampleSize).toBe(1);
+    expect(metrics.failureRate()).toBe(0);
+  });
+
+  it("parse_failed repetido dispara la alerta operativa (sección 11)", async () => {
+    // HTML servido con 200 OK pero sin __NEXT_DATA__ -> parse_failed, no blocked.
+    server.use(http.get("https://wellfound.com/role/r/backend-engineer", () => HttpResponse.text("<html></html>")));
+
+    const metrics = new ExtractionMetrics(20, 5, 0.3);
+    const log = vi.fn();
+    const adapter = testAdapter(testHttpClient(), new CircuitBreaker(), metrics, log);
+
+    for (let i = 0; i < 5; i++) {
+      await adapter.listCompanies({ jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 50 }, 1);
+    }
+
+    expect(metrics.sampleSize).toBe(5);
+    expect(metrics.failureRate()).toBe(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("extraction-alert"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("100%"));
+  });
+
+  it("no alerta con menos de 5 muestras aunque todas fallen", async () => {
+    server.use(http.get("https://wellfound.com/role/r/backend-engineer", () => HttpResponse.text("<html></html>")));
+
+    const metrics = new ExtractionMetrics(20, 5, 0.3);
+    const log = vi.fn();
+    const adapter = testAdapter(testHttpClient(), new CircuitBreaker(), metrics, log);
+
+    await adapter.listCompanies({ jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 50 }, 1);
+    await adapter.listCompanies({ jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 50 }, 1);
+
+    expect(log).not.toHaveBeenCalled();
   });
 });

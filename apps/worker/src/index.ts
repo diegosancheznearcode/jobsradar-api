@@ -1,6 +1,12 @@
 import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
-import { CircuitBreaker, HttpClient, WellfoundAdapter, parseJobDetail } from "@jobsradar/adapter-wellfound";
+import {
+  CircuitBreaker,
+  ExtractionMetrics,
+  HttpClient,
+  WellfoundAdapter,
+  parseJobDetail,
+} from "@jobsradar/adapter-wellfound";
 import { RedisEventPublisher } from "@jobsradar/events-redis";
 import { createConnection, PostgresSearchRepository, runMigrations } from "@jobsradar/repository-postgres";
 import { processCompanyDetail } from "./processors/companyDetailProcessor.js";
@@ -23,8 +29,9 @@ await runMigrations(sql);
 
 const repository = new PostgresSearchRepository(sql);
 const breaker = new CircuitBreaker();
+const extractionMetrics = new ExtractionMetrics();
 const sessionHttp = new HttpClient(STORAGE_STATE_PATH ? { storageStatePath: STORAGE_STATE_PATH } : {});
-const adapter = new WellfoundAdapter(sessionHttp, breaker);
+const adapter = new WellfoundAdapter(sessionHttp, breaker, extractionMetrics);
 // Conexión de publicación aparte de `connection` (BullMQ) — pub/sub y
 // colas no deberían compartir la misma conexión ioredis.
 const events = new RedisEventPublisher(new Redis(REDIS_URL));

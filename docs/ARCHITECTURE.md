@@ -475,7 +475,11 @@ sin fallar"), no reintenta contra un bloqueo que no se va a resolver solo.
 - **Adaptador:** tests de integración con las fixtures servidas por MSW.
 - **API:** tests de contrato sobre los esquemas Zod.
 - **Alerta operativa:** si la tasa de extracción vacía supera el 30 %, los selectores
-  se rompieron. Es el síntoma que hay que monitorear.
+  se rompieron. Es el síntoma que hay que monitorear. Implementado en Fase 8
+  como un `console.warn` desde `WellfoundAdapter` — ver el resultado de esa
+  fase más abajo. Deliberadamente **solo log**, sin endpoint HTTP ni
+  dashboard: el circuit breaker y las métricas viven en el proceso del
+  worker, que no tiene servidor HTTP, y el documento no pedía agregar uno.
 
 Stack: Vitest + React Testing Library + MSW.
 
@@ -493,7 +497,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 5 | ✅ Completada (2026-08-26) — Colas + repositorio + caché, contra Postgres/Redis reales (ver sección 8 resultado) | 6 |
 | 6 | ✅ Completada (2026-08-26) — API BFF + SSE (ver sección 7 resultado) | 7 |
 | 7 | Frontend React hexagonal (domain/application/infrastructure/ui, sección 9.1) + tabla + exportación | — |
-| 8 | Observabilidad + alerta de selectores rotos | — |
+| 8 | ✅ Completada (2026-08-26) — Observabilidad + alerta de selectores rotos (ver sección 11 resultado) | — |
 
 ### Fase 0 — checklist concreto (completado)
 
@@ -704,6 +708,36 @@ ambos atacando la misma Postgres, apareció un deadlock real de Postgres.
 mismo problema que el `fileParallelism: false` de Fase 5, un nivel más
 arriba (entre paquetes, no solo entre archivos de un paquete). CI también
 levanta un servicio Redis, además del Postgres de Fase 5.
+
+### Fase 8 — resultado (2026-08-26)
+
+`ExtractionMetrics` (nuevo, en `packages/adapter-wellfound`): ventana móvil
+de las últimas 20 extracciones, alerta si más del 30 % fallaron **y** hay
+al menos 5 muestras (evita falsos positivos al arrancar con 1 de 1
+fallido). "Extracción vacía" se definió estrictamente como `parse_failed`
+con un HTML que sí llegó (200 OK) — `blocked`/`rate_limited`/`not_found`
+quedan afuera a propósito: son problemas de acceso a la red o de una
+empresa puntual, no de selectores rotos, y `blocked` ya lo cubre el
+circuit breaker.
+
+`CircuitBreaker.getMetrics()` agrega `tripCount`/`lastTrippedAt` — a
+diferencia de `reset()`, que sí limpia el estado `open`/`lastError`, estos
+dos son acumulativos y sobreviven un reset (son "cuántas veces pasó
+esto", no "está pasando ahora mismo").
+
+`WellfoundAdapter` ahora recibe `metrics` y un `log` inyectable (default
+`console.warn`) como constructor params — cuando `isAboveThreshold()`, loguea
+la tasa, el tamaño de la muestra, y el estado + tripCount del circuit
+breaker en un solo mensaje. Decisión de alcance (acordada con el usuario):
+**solo log, sin endpoint HTTP nuevo** — el breaker y las métricas viven en
+el proceso del worker, que no tiene servidor HTTP, y agregar uno para esto
+habría sido infraestructura que ni la sección 11 ni el issue de Fase 8
+pedían.
+
+Con esto, **las 8 fases del plan original quedan completadas** en
+`jobsradar-api`. Lo único pendiente registrado en el Backlog es el TTL
+real de `cf_clearance` (Fase 4, requiere una sesión en vivo) y toda la
+Fase 7 (frontend, `jobsradar-web`).
 
 ---
 

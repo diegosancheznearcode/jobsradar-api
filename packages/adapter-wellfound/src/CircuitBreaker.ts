@@ -8,9 +8,21 @@ import type { ExtractionError } from "@jobsradar/domain";
 
 export type CircuitBreakerState = "closed" | "open";
 
+export interface CircuitBreakerMetrics {
+  state: CircuitBreakerState;
+  tripCount: number;
+  lastTrippedAt: Date | null;
+  lastError: ExtractionError | null;
+}
+
 export class CircuitBreaker {
   private state: CircuitBreakerState = "closed";
   private lastError: ExtractionError | null = null;
+  // Fase 8: visibilidad operativa del breaker (sección 11, issue "métricas
+  // del circuit breaker") — cuántas veces se abrió y cuándo fue la última,
+  // no solo si está abierto ahora mismo.
+  private tripCount = 0;
+  private lastTrippedAt: Date | null = null;
 
   isOpen(): boolean {
     return this.state === "open";
@@ -19,6 +31,8 @@ export class CircuitBreaker {
   trip(error: ExtractionError): void {
     this.state = "open";
     this.lastError = error;
+    this.tripCount += 1;
+    this.lastTrippedAt = new Date();
   }
 
   reset(): void {
@@ -28,5 +42,14 @@ export class CircuitBreaker {
 
   getLastError(): ExtractionError | null {
     return this.lastError;
+  }
+
+  getMetrics(): CircuitBreakerMetrics {
+    return {
+      state: this.state,
+      tripCount: this.tripCount,
+      lastTrippedAt: this.lastTrippedAt,
+      lastError: this.lastError,
+    };
   }
 }
