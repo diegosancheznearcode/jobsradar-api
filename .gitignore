@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.turbo/
+
+# Sesión de Wellfound — nunca versionar (AD-05, sección 6.2)
+storageState.json
+*.storageState.json
