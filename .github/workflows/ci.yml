@@ -23,10 +23,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # packages/domain y apps/* resuelven @jobsradar/contracts vía su
+      # dist/ (package.json "types"/"main"), no contra el código fuente —
+      # dist/ está en .gitignore, así que en un checkout limpio no existe
+      # hasta compilar. pnpm build respeta el orden topológico del workspace
+      # (contracts -> domain -> api/worker), por eso va antes de typecheck.
+      - run: pnpm build
+
       - run: pnpm typecheck
 
       - run: pnpm lint
-
-      - run: pnpm build
 
       - run: pnpm test
