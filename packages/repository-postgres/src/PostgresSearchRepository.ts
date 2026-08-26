@@ -61,6 +61,10 @@ export class PostgresSearchRepository implements SearchRepositoryPort {
     return row.id;
   }
 
+  async updateStatus(searchId: string, status: SearchSnapshot["status"]): Promise<void> {
+    await this.sql`UPDATE searches SET status = ${status} WHERE id = ${searchId}`;
+  }
+
   async attachCompany(searchId: string, company: Company, rank: number): Promise<void> {
     await this.sql.begin(async (tx) => {
       const [companyRow] = await tx<{ id: string }[]>`

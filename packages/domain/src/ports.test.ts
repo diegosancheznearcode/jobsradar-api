@@ -31,6 +31,11 @@ class InMemorySearchRepository implements SearchRepositoryPort {
     if (!snapshot) throw new Error("not found");
     return snapshot;
   }
+
+  async updateStatus(searchId: string, status: SearchSnapshot["status"]): Promise<void> {
+    const snapshot = this.searches.get(searchId);
+    if (snapshot) snapshot.status = status;
+  }
 }
 
 describe("SearchRepositoryPort (implementación en memoria)", () => {
@@ -61,5 +66,13 @@ describe("SearchRepositoryPort (implementación en memoria)", () => {
 
     await expect(repo.findCompanyBySlug("vaulfi-1", 24)).resolves.toEqual(company);
     await expect(repo.getSnapshot(searchId)).resolves.toMatchObject({ companies: [company] });
+  });
+
+  it("updateStatus transiciona el status de la búsqueda", async () => {
+    const repo = new InMemorySearchRepository();
+    const searchId = await repo.create({ jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 50 });
+
+    await repo.updateStatus(searchId, "running");
+    await expect(repo.getSnapshot(searchId)).resolves.toMatchObject({ status: "running" });
   });
 });

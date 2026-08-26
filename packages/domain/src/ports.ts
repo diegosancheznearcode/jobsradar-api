@@ -33,6 +33,12 @@ export interface SearchRepositoryPort {
   attachCompany(searchId: string, company: Company, rank: number): Promise<void>;
   findCompanyBySlug(slug: string, maxAgeHours: number): Promise<Company | null>;
   getSnapshot(searchId: string): Promise<SearchSnapshot>;
+  // Agregado en Fase 6 (acordado con el usuario): el documento no daba
+  // forma de transicionar searches.status — sin esto, GET /api/searches/:id
+  // (sección 7) siempre habría mostrado "queued", incluso con la búsqueda
+  // terminada. search-list lo llama al arrancar (running) y al dejar de
+  // paginar (done/paused).
+  updateStatus(searchId: string, status: SearchSnapshot["status"]): Promise<void>;
 }
 
 export interface EventPublisherPort {

@@ -1,4 +1,4 @@
-import type { JobSourcePort, SearchRepositoryPort } from "@jobsradar/domain";
+import type { EventPublisherPort, JobSourcePort, SearchRepositoryPort } from "@jobsradar/domain";
 import type { CompanyDetailJobData } from "./searchListProcessor.js";
 
 // Cola company-detail — ver ARCHITECTURE.md sección 10. Enriquece una
@@ -12,6 +12,7 @@ const CACHE_MAX_AGE_HOURS = 24 * 7; // una semana — sin TTL real de cf_clearan
 export interface CompanyDetailDeps {
   adapter: JobSourcePort;
   repository: SearchRepositoryPort;
+  events: EventPublisherPort;
   log?: (message: string) => void;
 }
 
@@ -28,8 +29,21 @@ export async function processCompanyDetail(data: CompanyDetailJobData, deps: Com
   if (!result.ok) {
     if (result.error.kind === "blocked") {
       log(`[company-detail] slug=${data.slug} blocked — falta sesión válida, renovar storageState.json manualmente`);
+      // blocked afecta a toda la búsqueda, no solo a esta empresa (Fase 4:
+      // el circuit breaker del adaptador ya frenó al resto de esta cola).
+      await deps.repository.updateStatus(data.searchId, "paused");
+      await deps.events.publish(data.searchId, {
+        type: "paused",
+        reason: "blocked",
+        resumeAt: new Date(Date.now() + 60_000).toISOString(),
+      });
     } else {
       log(`[company-detail] slug=${data.slug} error=${result.error.kind}`);
+      await deps.events.publish(data.searchId, {
+        type: "company.failed",
+        slug: data.slug,
+        reason: result.error.kind,
+      });
     }
     return;
   }

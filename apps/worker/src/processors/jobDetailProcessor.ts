@@ -1,5 +1,5 @@
 import { CompanySchema } from "@jobsradar/contracts";
-import type { ExtractionError, Result, SearchRepositoryPort } from "@jobsradar/domain";
+import type { EventPublisherPort, ExtractionError, Result, SearchRepositoryPort } from "@jobsradar/domain";
 import type { CascadeResult, JobDetailResult } from "@jobsradar/adapter-wellfound";
 
 // Cola job-detail — ver ARCHITECTURE.md sección 10. GET /jobs/{id}, SIN
@@ -19,6 +19,7 @@ export interface JobDetailJobData {
 export interface JobDetailDeps {
   fetchJobDetail: (url: string) => Promise<Result<CascadeResult<JobDetailResult>, ExtractionError>>;
   repository: SearchRepositoryPort;
+  events: EventPublisherPort;
   log?: (message: string) => void;
 }
 
@@ -28,6 +29,7 @@ export async function processJobDetail(data: JobDetailJobData, deps: JobDetailDe
   const result = await deps.fetchJobDetail(data.jobUrl);
   if (!result.ok) {
     log(`[job-detail] slug=${data.slug} url=${data.jobUrl} error=${result.error.kind}`);
+    await deps.events.publish(data.searchId, { type: "company.failed", slug: data.slug, reason: result.error.kind });
     return;
   }
 

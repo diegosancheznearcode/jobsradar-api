@@ -1,7 +1,7 @@
 import postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Company, SearchCriteria } from "@jobsradar/contracts";
-import type { ExtractionError, JobSourcePort, Result } from "@jobsradar/domain";
+import type { Company, SearchCriteria, SearchEvent } from "@jobsradar/contracts";
+import type { EventPublisherPort, ExtractionError, JobSourcePort, Result } from "@jobsradar/domain";
 import { PostgresSearchRepository, runMigrations } from "@jobsradar/repository-postgres";
 import { processSearchList } from "./searchListProcessor.js";
 
@@ -45,16 +45,27 @@ function fakeAdapter(pages: Record<number, { companies: Company[]; hasMore: bool
   };
 }
 
+function fakeEvents(): EventPublisherPort & { published: SearchEvent[] } {
+  const published: SearchEvent[] = [];
+  return {
+    published,
+    publish: async (_searchId, event) => {
+      published.push(event);
+    },
+  };
+}
+
 describe("processSearchList", () => {
   it("persiste cada empresa con rank consecutivo y encola company-detail por cada una", async () => {
     const searchId = await repository.create(criteria);
     const adapter = fakeAdapter({ 1: { companies: [company("a"), company("b")], hasMore: false } });
     const enqueueCompanyDetail = vi.fn().mockResolvedValue(undefined);
     const enqueueNextPage = vi.fn().mockResolvedValue(undefined);
+    const events = fakeEvents();
 
     await processSearchList(
       { searchId, criteria, page: 1 },
-      { adapter, repository, enqueueCompanyDetail, enqueueNextPage },
+      { adapter, repository, events, enqueueCompanyDetail, enqueueNextPage },
     );
 
     const snapshot = await repository.getSnapshot(searchId);
@@ -71,23 +82,33 @@ describe("processSearchList", () => {
 
     await processSearchList(
       { searchId, criteria, page: 1 },
-      { adapter, repository, enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined), enqueueNextPage },
+      {
+        adapter,
+        repository,
+        events: fakeEvents(),
+        enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined),
+        enqueueNextPage,
+      },
     );
 
     expect(enqueueNextPage).toHaveBeenCalledWith({ searchId, criteria, page: 2 });
+    expect((await repository.getSnapshot(searchId)).status).toBe("running");
   });
 
   it("NO encola la página siguiente si ya se llegó al target, aunque hasMore sea true", async () => {
     const searchId = await repository.create({ ...criteria, targetCompanies: 2 });
     const adapter = fakeAdapter({ 1: { companies: [company("a"), company("b")], hasMore: true } });
     const enqueueNextPage = vi.fn().mockResolvedValue(undefined);
+    const events = fakeEvents();
 
     await processSearchList(
       { searchId, criteria: { ...criteria, targetCompanies: 2 }, page: 1 },
-      { adapter, repository, enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined), enqueueNextPage },
+      { adapter, repository, events, enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined), enqueueNextPage },
     );
 
     expect(enqueueNextPage).not.toHaveBeenCalled();
+    expect((await repository.getSnapshot(searchId)).status).toBe("done");
+    expect(events.published).toContainEqual({ type: "done", total: 2, partial: 2 });
   });
 
   it("el rank de una segunda página sigue desde donde quedó la primera", async () => {
@@ -100,6 +121,7 @@ describe("processSearchList", () => {
       {
         adapter,
         repository,
+        events: fakeEvents(),
         enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined),
         enqueueNextPage: vi.fn().mockResolvedValue(undefined),
       },
@@ -109,7 +131,27 @@ describe("processSearchList", () => {
     expect(snapshot.companies).toHaveLength(2);
   });
 
-  it("si el adapter falla (blocked/parse_failed), no tira y no encola nada", async () => {
+  it("publica company.found por cada empresa y progress al final de la página", async () => {
+    const searchId = await repository.create(criteria);
+    const adapter = fakeAdapter({ 1: { companies: [company("a")], hasMore: false } });
+    const events = fakeEvents();
+
+    await processSearchList(
+      { searchId, criteria, page: 1 },
+      {
+        adapter,
+        repository,
+        events,
+        enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined),
+        enqueueNextPage: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    expect(events.published).toContainEqual({ type: "company.found", company: company("a"), rank: 1 });
+    expect(events.published).toContainEqual({ type: "progress", found: 1, target: 3, page: 1 });
+  });
+
+  it("si el adapter falla con blocked, pausa la búsqueda y publica 'paused' (no tira, no encola)", async () => {
     const searchId = await repository.create(criteria);
     const adapter: JobSourcePort = {
       listCompanies: async () => ({ ok: false, error: { kind: "blocked", retryable: true, detail: "captcha" } }),
@@ -117,14 +159,20 @@ describe("processSearchList", () => {
     };
     const enqueueCompanyDetail = vi.fn().mockResolvedValue(undefined);
     const enqueueNextPage = vi.fn().mockResolvedValue(undefined);
+    const events = fakeEvents();
     const log = vi.fn();
 
     await expect(
-      processSearchList({ searchId, criteria, page: 1 }, { adapter, repository, enqueueCompanyDetail, enqueueNextPage, log }),
+      processSearchList(
+        { searchId, criteria, page: 1 },
+        { adapter, repository, events, enqueueCompanyDetail, enqueueNextPage, log },
+      ),
     ).resolves.toBeUndefined();
 
     expect(enqueueCompanyDetail).not.toHaveBeenCalled();
     expect(enqueueNextPage).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(expect.stringContaining("blocked"));
+    expect((await repository.getSnapshot(searchId)).status).toBe("paused");
+    expect(events.published[0]).toMatchObject({ type: "paused", reason: "blocked" });
   });
 });

@@ -12,6 +12,7 @@ jobs:
     # packages/repository-postgres y apps/worker prueban contra Postgres
     # real (Fase 5) — sección 11 no cubre SQL explícitamente, y mockear
     # postgres.js no probaría el merge/idempotencia/caché de verdad.
+    # packages/events-redis prueba contra Redis real (Fase 6, pub/sub).
     services:
       postgres:
         image: postgres:16-alpine
@@ -26,9 +27,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     env:
       DATABASE_URL: postgres://jobsradar:jobsradar@localhost:5432/jobsradar
+      REDIS_URL: redis://localhost:6379
 
     steps:
       - uses: actions/checkout@v4

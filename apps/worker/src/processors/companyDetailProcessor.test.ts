@@ -1,7 +1,7 @@
 import postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Company, SearchCriteria } from "@jobsradar/contracts";
-import type { JobSourcePort } from "@jobsradar/domain";
+import type { Company, SearchCriteria, SearchEvent } from "@jobsradar/contracts";
+import type { EventPublisherPort, JobSourcePort } from "@jobsradar/domain";
 import { PostgresSearchRepository, runMigrations } from "@jobsradar/repository-postgres";
 import { processCompanyDetail } from "./companyDetailProcessor.js";
 
@@ -44,6 +44,16 @@ function enrichedCompany(): Company {
   };
 }
 
+function fakeEvents(): EventPublisherPort & { published: SearchEvent[] } {
+  const published: SearchEvent[] = [];
+  return {
+    published,
+    publish: async (_searchId, event) => {
+      published.push(event);
+    },
+  };
+}
+
 describe("processCompanyDetail", () => {
   it("pide getCompany y persiste el resultado enriquecido", async () => {
     const searchId = await repository.create(criteria);
@@ -54,7 +64,7 @@ describe("processCompanyDetail", () => {
       getCompany: async () => ({ ok: true, value: enrichedCompany() }),
     };
 
-    await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository });
+    await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events: fakeEvents() });
 
     const found = await repository.findCompanyBySlug("vaulfi-1", 24);
     expect(found?.founders).toHaveLength(1);
@@ -71,12 +81,12 @@ describe("processCompanyDetail", () => {
       getCompany,
     };
 
-    await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository });
+    await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events: fakeEvents() });
 
     expect(getCompany).not.toHaveBeenCalled();
   });
 
-  it("blocked se loguea y no tira", async () => {
+  it("blocked se loguea, pausa la búsqueda y publica 'paused'", async () => {
     const searchId = await repository.create(criteria);
     await repository.attachCompany(searchId, baseCompany(), 1);
 
@@ -85,8 +95,29 @@ describe("processCompanyDetail", () => {
       getCompany: async () => ({ ok: false, error: { kind: "blocked", retryable: true, detail: "captcha" } }),
     };
     const log = vi.fn();
+    const events = fakeEvents();
 
-    await expect(processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, log })).resolves.toBeUndefined();
+    await expect(
+      processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events, log }),
+    ).resolves.toBeUndefined();
+
     expect(log).toHaveBeenCalledWith(expect.stringContaining("blocked"));
+    expect((await repository.getSnapshot(searchId)).status).toBe("paused");
+    expect(events.published[0]).toMatchObject({ type: "paused", reason: "blocked" });
+  });
+
+  it("not_found publica company.failed", async () => {
+    const searchId = await repository.create(criteria);
+    await repository.attachCompany(searchId, baseCompany(), 1);
+
+    const adapter: JobSourcePort = {
+      listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+      getCompany: async () => ({ ok: false, error: { kind: "not_found", retryable: false } }),
+    };
+    const events = fakeEvents();
+
+    await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events });
+
+    expect(events.published).toEqual([{ type: "company.failed", slug: "vaulfi-1", reason: "not_found" }]);
   });
 });

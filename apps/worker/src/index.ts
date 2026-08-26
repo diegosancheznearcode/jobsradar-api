@@ -1,6 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { CircuitBreaker, HttpClient, WellfoundAdapter, parseJobDetail } from "@jobsradar/adapter-wellfound";
+import { RedisEventPublisher } from "@jobsradar/events-redis";
 import { createConnection, PostgresSearchRepository, runMigrations } from "@jobsradar/repository-postgres";
 import { processCompanyDetail } from "./processors/companyDetailProcessor.js";
 import { processJobDetail } from "./processors/jobDetailProcessor.js";
@@ -24,6 +25,9 @@ const repository = new PostgresSearchRepository(sql);
 const breaker = new CircuitBreaker();
 const sessionHttp = new HttpClient(STORAGE_STATE_PATH ? { storageStatePath: STORAGE_STATE_PATH } : {});
 const adapter = new WellfoundAdapter(sessionHttp, breaker);
+// Conexión de publicación aparte de `connection` (BullMQ) — pub/sub y
+// colas no deberían compartir la misma conexión ioredis.
+const events = new RedisEventPublisher(new Redis(REDIS_URL));
 
 // job-detail no pasa por JobSourcePort (sección 9: no lo declara) — usa su
 // propio HttpClient sin sesión, tal como confirmó Fase 0.
@@ -44,6 +48,7 @@ new Worker<SearchListJobData>(
     processSearchList(job.data, {
       adapter,
       repository,
+      events,
       enqueueCompanyDetail: (data) => companyDetailQueue.add("enrich", data).then(() => undefined),
       enqueueNextPage: (data) => searchListQueue.add("page", data).then(() => undefined),
     }),
@@ -52,13 +57,13 @@ new Worker<SearchListJobData>(
 
 new Worker(
   "company-detail",
-  (job) => processCompanyDetail(job.data, { adapter, repository }),
+  (job) => processCompanyDetail(job.data, { adapter, repository, events }),
   { connection, concurrency: 2 },
 );
 
 new Worker(
   "job-detail",
-  (job) => processJobDetail(job.data, { fetchJobDetail, repository }),
+  (job) => processJobDetail(job.data, { fetchJobDetail, repository, events }),
   { connection, concurrency: 2 },
 );
 

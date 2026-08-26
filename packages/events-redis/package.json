@@ -1,31 +1,24 @@
 {
-  "name": "@jobsradar/api",
+  "name": "@jobsradar/events-redis",
   "private": true,
   "version": "0.1.0",
-  "description": "Fastify BFF — SSE, exportación. Ver ARCHITECTURE.md sección 7.",
+  "description": "EventPublisherPort vía Redis pub/sub + subscribeToSearch para SSE. Ver ARCHITECTURE.md sección 5.",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"no lint configured yet\"",
     "test": "vitest run"
   },
   "dependencies": {
-    "@fastify/cors": "^10.0.0",
     "@jobsradar/contracts": "workspace:*",
     "@jobsradar/domain": "workspace:*",
-    "@jobsradar/events-redis": "workspace:*",
-    "@jobsradar/repository-postgres": "workspace:*",
-    "bullmq": "^5.13.0",
-    "fastify": "^5.0.0",
     "ioredis": "^5.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
-    "postgres": "^3.4.9",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^4.1.0"
   }

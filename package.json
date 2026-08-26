@@ -11,7 +11,7 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "lint": "pnpm -r run lint",
-    "test": "pnpm -r run test",
+    "test": "pnpm -r --workspace-concurrency=1 run test",
     "dev:api": "pnpm --filter @jobsradar/api dev",
     "dev:worker": "pnpm --filter @jobsradar/worker dev"
   }

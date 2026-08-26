@@ -192,12 +192,21 @@ export interface SearchRepositoryPort {
   attachCompany(searchId: string, company: Company, rank: number): Promise<void>;
   findCompanyBySlug(slug: string, maxAgeHours: number): Promise<Company | null>;
   getSnapshot(searchId: string): Promise<SearchSnapshot>;
+  // Agregado en Fase 6 (acordado con el usuario): sin esto, GET
+  // /api/searches/:id (sección 7) siempre habría mostrado "queued".
+  updateStatus(searchId: string, status: SearchSnapshot["status"]): Promise<void>;
 }
 
 export interface EventPublisherPort {
   publish(searchId: string, event: SearchEvent): Promise<void>;
 }
 ```
+
+`EventPublisherPort` no define cómo alguien se suscribe — el documento
+original no cubría el transporte entre procesos (worker publica, la API
+del SSE escucha). Fase 6 lo resolvió con Redis pub/sub
+(`packages/events-redis`, ver sección 9) y una función `subscribeToSearch`
+al lado de `RedisEventPublisher`, fuera del puerto formal.
 
 `findCompanyBySlug` es el caché que evita re-scrapear una empresa vista hace días.
 Es lo que hace el sistema sostenible.
@@ -371,7 +380,8 @@ jobsradar-api/                  # backend — repo separado
 │   ├── domain/                 # Value Objects, entidades, puertos, Result — interno, no se publica
 │   ├── contracts/               # Esquemas Zod — publicado como @jobsradar/contracts
 │   ├── adapter-wellfound/       # implementa JobSourcePort — parsers + HttpClient/BrowserClient (sección 6)
-│   └── repository-postgres/     # implementa SearchRepositoryPort — postgres.js, sin ORM (sección 8)
+│   ├── repository-postgres/     # implementa SearchRepositoryPort — postgres.js, sin ORM (sección 8)
+│   └── events-redis/            # implementa EventPublisherPort + subscribeToSearch (Redis pub/sub, sección 5)
 └── docker-compose.yml          # postgres, redis, api, worker
 
 jobsradar-web/                  # frontend — repo separado, también hexagonal (AD-08)
@@ -481,7 +491,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 3 | ✅ Completada (2026-08-25) — Parsers contra fixtures (sin red), en `packages/adapter-wellfound` | 4 |
 | 4 | ✅ Completada (2026-08-26) — `WellfoundAdapter` + política de ritmo, todo mockeado (sin red real, ver sección 6.2 resultado) | 5 |
 | 5 | ✅ Completada (2026-08-26) — Colas + repositorio + caché, contra Postgres/Redis reales (ver sección 8 resultado) | 6 |
-| 6 | API BFF + SSE | 7 |
+| 6 | ✅ Completada (2026-08-26) — API BFF + SSE (ver sección 7 resultado) | 7 |
 | 7 | Frontend React hexagonal (domain/application/infrastructure/ui, sección 9.1) + tabla + exportación | — |
 | 8 | Observabilidad + alerta de selectores rotos | — |
 
@@ -652,6 +662,48 @@ Otras decisiones:
   `TRUNCATE` en `beforeEach`; en paralelo, un archivo borraba los datos
   que otro acababa de insertar. El CI ahora levanta un servicio Postgres
   real (ver `.github/workflows/ci.yml`).
+
+### Fase 6 — resultado (2026-08-26)
+
+`packages/events-redis` (nuevo) implementa `EventPublisherPort` sobre Redis
+pub/sub (`redis.publish`/`redis.subscribe`) — decisión sin alternativa real
+dado que AD-06 ya usa Redis para BullMQ. `subscribeToSearch` abre una
+conexión de suscripción **nueva por cada cliente SSE** (no una compartida):
+así desconectar a un cliente nunca corta a otro escuchando el mismo
+`searchId` — probado explícitamente.
+
+`SearchRepositoryPort.updateStatus` (acordado con el usuario, igual que
+los cambios de puerto anteriores): sin él, `GET /api/searches/:id` siempre
+hubiera mostrado `"queued"`. `search-list` lo llama a `running` al
+arrancar cada página y a `done`/`paused`/`failed` al dejar de paginar o
+ante un error.
+
+`apps/api` (`src/app.ts`) expone las 4 rutas de la sección 7 contra
+Postgres y Redis reales, separado de `index.ts` (que solo arranca el
+servidor) para poder testear con `fastify.inject()` sin bindear un puerto.
+El SSE (`GET /api/searches/:id/stream`) escribe cada evento como un frame
+`data: {...}\n\n` y cierra la conexión solo ante `done`/`error` — los demás
+tipos de evento la mantienen abierta.
+
+Los processors del worker ahora publican eventos reales, no solo loguean:
+`search-list` emite `company.found` por empresa, `progress` al final de
+cada página, y `done`/`paused`/`error` según corresponda;
+`company-detail`/`job-detail` emiten `company.failed` en sus errores, y
+`company-detail` además pausa toda la búsqueda (`updateStatus` +
+evento `paused`) ante `blocked`, porque el circuit breaker del adaptador
+(Fase 4) ya frenó al resto de esa cola. Simplificación deliberada: `done`
+se publica cuando `search-list` termina de paginar, no cuando termina
+toda la enriquecida vía `company-detail`/`job-detail` — esos jobs pueden
+seguir corriendo en segundo plano después del evento `done`.
+
+Bug de test encontrado **entre paquetes**, no solo dentro de uno: con
+`apps/api` y `apps/worker` corriendo sus tests en paralelo (no dependen
+entre sí en el grafo de workspace, así que `pnpm -r` no los serializaba),
+ambos atacando la misma Postgres, apareció un deadlock real de Postgres.
+`pnpm test` en la raíz ahora corre con `--workspace-concurrency=1` —
+mismo problema que el `fileParallelism: false` de Fase 5, un nivel más
+arriba (entre paquetes, no solo entre archivos de un paquete). CI también
+levanta un servicio Redis, además del Postgres de Fase 5.
 
 ---
 

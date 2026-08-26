@@ -52,6 +52,24 @@ describe("PostgresSearchRepository.create", () => {
     const searchId = await repo.create(baseCriteria);
     expect(searchId).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it("arranca en status 'queued'", async () => {
+    const searchId = await repo.create(baseCriteria);
+    const snapshot = await repo.getSnapshot(searchId);
+    expect(snapshot.status).toBe("queued");
+  });
+});
+
+describe("PostgresSearchRepository.updateStatus", () => {
+  it("transiciona el status y getSnapshot lo refleja", async () => {
+    const searchId = await repo.create(baseCriteria);
+
+    await repo.updateStatus(searchId, "running");
+    expect((await repo.getSnapshot(searchId)).status).toBe("running");
+
+    await repo.updateStatus(searchId, "done");
+    expect((await repo.getSnapshot(searchId)).status).toBe("done");
+  });
 });
 
 describe("PostgresSearchRepository.attachCompany + findCompanyBySlug", () => {

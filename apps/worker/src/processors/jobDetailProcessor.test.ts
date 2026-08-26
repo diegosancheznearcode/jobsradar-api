@@ -1,8 +1,19 @@
 import postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Company, SearchCriteria } from "@jobsradar/contracts";
+import type { Company, SearchCriteria, SearchEvent } from "@jobsradar/contracts";
+import type { EventPublisherPort } from "@jobsradar/domain";
 import { PostgresSearchRepository, runMigrations } from "@jobsradar/repository-postgres";
 import { processJobDetail } from "./jobDetailProcessor.js";
+
+function fakeEvents(): EventPublisherPort & { published: SearchEvent[] } {
+  const published: SearchEvent[] = [];
+  return {
+    published,
+    publish: async (_searchId, event) => {
+      published.push(event);
+    },
+  };
+}
 
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://jobsradar:jobsradar@localhost:5432/jobsradar";
 const sql = postgres(DATABASE_URL);
@@ -58,7 +69,7 @@ describe("processJobDetail", () => {
 
     await processJobDetail(
       { searchId, slug: "speak", jobUrl: "https://wellfound.com/jobs/3392132-backend-engineer" },
-      { fetchJobDetail, repository },
+      { fetchJobDetail, repository, events: fakeEvents() },
     );
 
     const found = await repository.findCompanyBySlug("speak", 24);
@@ -75,14 +86,16 @@ describe("processJobDetail", () => {
       error: { kind: "parse_failed", retryable: false, strategy: "json_ld", html: "<html></html>" },
     });
     const log = vi.fn();
+    const events = fakeEvents();
 
     await expect(
       processJobDetail(
         { searchId, slug: "speak", jobUrl: "https://wellfound.com/jobs/x" },
-        { fetchJobDetail, repository, log },
+        { fetchJobDetail, repository, events, log },
       ),
     ).resolves.toBeUndefined();
 
     expect(log).toHaveBeenCalledWith(expect.stringContaining("parse_failed"));
+    expect(events.published).toEqual([{ type: "company.failed", slug: "speak", reason: "parse_failed" }]);
   });
 });

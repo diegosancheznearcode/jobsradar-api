@@ -1,38 +1,31 @@
-import cors from "@fastify/cors";
-import Fastify from "fastify";
+import { Queue } from "bullmq";
+import { Redis } from "ioredis";
+import { subscribeToSearch } from "@jobsradar/events-redis";
+import { createConnection, PostgresSearchRepository, runMigrations } from "@jobsradar/repository-postgres";
+import { buildApp } from "./app.js";
 
 // Contrato completo (rutas + SSE) en ARCHITECTURE.md sección 7.
-// Las rutas devuelven 501 hasta la Fase 6 — este archivo solo confirma que
-// el servicio arranca, responde y aplica CORS por entorno (AD-11, sección 7.1).
 
 const PORT = Number(process.env.PORT ?? 3000);
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
+const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://jobsradar:jobsradar@localhost:5432/jobsradar";
 
-const app = Fastify({ logger: true });
+const sql = createConnection(DATABASE_URL);
+await runMigrations(sql);
+const repository = new PostgresSearchRepository(sql);
 
-await app.register(cors, {
-  origin: ALLOWED_ORIGINS,
-});
+const queueConnection = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
+const searchListQueue = new Queue("search-list", { connection: queueConnection });
 
-app.get("/health", async () => ({ status: "ok" }));
-
-app.post("/api/searches", async (_request, reply) => {
-  return reply.code(501).send({ error: "not_implemented", phase: 6 });
-});
-
-app.get("/api/searches/:id", async (_request, reply) => {
-  return reply.code(501).send({ error: "not_implemented", phase: 6 });
-});
-
-app.get("/api/searches/:id/stream", async (_request, reply) => {
-  return reply.code(501).send({ error: "not_implemented", phase: 6 });
-});
-
-app.get("/api/searches/:id/export", async (_request, reply) => {
-  return reply.code(501).send({ error: "not_implemented", phase: 6 });
+const app = buildApp({
+  repository,
+  allowedOrigins: ALLOWED_ORIGINS,
+  enqueueSearchList: (data) => searchListQueue.add("page", data).then(() => undefined),
+  subscribeToSearch: (searchId, onEvent) => subscribeToSearch(REDIS_URL, searchId, onEvent),
 });
 
 app

@@ -16,6 +16,7 @@
     "@jobsradar/adapter-wellfound": "workspace:*",
     "@jobsradar/contracts": "workspace:*",
     "@jobsradar/domain": "workspace:*",
+    "@jobsradar/events-redis": "workspace:*",
     "@jobsradar/repository-postgres": "workspace:*",
     "bullmq": "^5.13.0",
     "ioredis": "^5.4.0"
