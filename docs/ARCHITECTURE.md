@@ -513,10 +513,47 @@ como sibling en CI y symlinkear `packages/contracts/dist` para resolver el
 `"@diegosancheznearcode/contracts": "^0.1.0"`, una versión real. Instalarla
 requiere autenticación contra `npm.pkg.github.com` (GitHub Packages no sirve
 paquetes de un repo privado sin token, ni siquiera de solo lectura) — se
-agrega un `.npmrc` con el registro scopeado y `NODE_AUTH_TOKEN` por variable
-de entorno, y el CI reutiliza el secret `JOBSRADAR_API_RO_TOKEN` (el mismo
-Personal Access Token de Fase 1, con el permiso "Packages: Read-only"
-agregado — no hizo falta un secret nuevo, solo ampliar el existente).
+agrega un `.npmrc` con el registro scopeado y el token vía `NODE_AUTH_TOKEN`
+(que `actions/setup-node` inyecta en un `.npmrc` de usuario, no en el del
+repo — pnpm rechaza expandir variables de entorno en credenciales que vienen
+de un `.npmrc` de proyecto committeado, por seguridad). El CI reutiliza el
+secret `JOBSRADAR_API_RO_TOKEN`.
+
+Un hallazgo real acá: un **fine-grained PAT con permiso "Packages:
+Read-only"** no sirve para leer de `npm.pkg.github.com` — el registro
+responde `403 permission_denied: "The token provided does not match
+expected scopes"` sin importar el permiso configurado en el token. GitHub
+Packages solo reconoce los scopes OAuth clásicos (`read:packages`, y `repo`
+para paquetes de un repo privado); no hay forma de hacerlo funcionar con un
+fine-grained token al momento de escribir esto. `JOBSRADAR_API_RO_TOKEN`
+terminó siendo un **classic PAT** con `read:packages` + `repo`, no el
+fine-grained token de Fase 1 con un permiso agregado como se planeó
+originalmente.
+
+Dos bugs reales encontrados en `apps/api/Dockerfile` y `apps/worker/Dockerfile`,
+sin relación con el rename pero descubiertos al auditarlos por la mención a
+`@jobsradar/contracts` en su `RUN pnpm --filter`:
+
+- La etapa `deps` nunca copiaba `pnpm-lock.yaml`, así que `pnpm install
+  --frozen-lockfile` fallaba siempre y cada build caía silenciosamente al
+  fallback `|| pnpm install` — una instalación no reproducible, ignorando el
+  lockfile real. Se agregó `pnpm-lock.yaml` al `COPY` y se sacó el fallback.
+- La etapa `deps` tampoco copiaba el `package.json` de
+  `packages/adapter-wellfound`, `packages/events-redis` ni
+  `packages/repository-postgres` (agregados en Fases 4-6, después de que se
+  escribieron los Dockerfiles en Fase 1), y el `RUN` de build solo
+  compilaba `domain` + `contracts` + la app — ni siquiera intentaba compilar
+  esos tres paquetes intermedios de los que `apps/api`/`apps/worker`
+  dependen. Un build de estos Dockerfiles nunca hubiera funcionado. Se
+  agregaron los `COPY` faltantes y el `RUN` pasó a `pnpm -r run build` (todo
+  el workspace, en orden topológico) en vez de listar cada paquete a mano —
+  así no vuelve a desincronizarse cuando se agregue un paquete nuevo.
+- Sin `.dockerignore`, `COPY . .` en la etapa `build` copiaba el
+  `node_modules` del host por encima del que `pnpm install` ya había
+  instalado *dentro* del contenedor Linux — en Windows eso rompe binarios
+  nativos (`esbuild`, `msgpackr-extract`) en runtime. Se agregó
+  `.dockerignore` excluyendo `node_modules`, `dist`, `fixtures` y demás
+  archivos que no hacen falta para el build.
 
 ---
 
