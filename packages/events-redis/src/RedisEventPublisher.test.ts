@@ -1,6 +1,6 @@
 import { Redis } from "ioredis";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
-import type { SearchEvent } from "@jobsradar/contracts";
+import type { SearchEvent } from "@diegosancheznearcode/contracts";
 import { RedisEventPublisher, subscribeToSearch } from "./RedisEventPublisher.js";
 
 // Integración contra Redis real (docker-compose up -d redis) — pub/sub no

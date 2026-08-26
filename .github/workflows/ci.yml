@@ -56,7 +56,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # packages/domain y apps/* resuelven @jobsradar/contracts vía su
+      # packages/domain y apps/* resuelven @diegosancheznearcode/contracts vía su
       # dist/ (package.json "types"/"main"), no contra el código fuente —
       # dist/ está en .gitignore, así que en un checkout limpio no existe
       # hasta compilar. pnpm build respeta el orden topológico del workspace
@@ -68,3 +68,46 @@ jobs:
       - run: pnpm lint
 
       - run: pnpm test
+
+  publish-contracts:
+    needs: build-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@diegosancheznearcode"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @diegosancheznearcode/contracts build
+
+      # Publica solo si la versión en package.json todavía no existe en el
+      # registro — evita que `npm publish` falle en cada push a main cuando
+      # no hubo bump de versión (ver ARCHITECTURE.md sección 9, nota de
+      # Fase 9). Bumpear la versión de packages/contracts/package.json
+      # cuando el contrato cambie es lo que dispara una publicación nueva.
+      - name: Publish si la versión cambió
+        working-directory: packages/contracts
+        run: |
+          LOCAL_VERSION=$(node -p "require('./package.json').version")
+          PUBLISHED_VERSION=$(npm view @diegosancheznearcode/contracts version 2>/dev/null || echo "none")
+          if [ "$LOCAL_VERSION" != "$PUBLISHED_VERSION" ]; then
+            echo "Publicando $LOCAL_VERSION (registro tiene: $PUBLISHED_VERSION)"
+            npm publish
+          else
+            echo "Versión $LOCAL_VERSION ya publicada, nada que hacer."
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

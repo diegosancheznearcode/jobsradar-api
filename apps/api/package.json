@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",
-    "@jobsradar/contracts": "workspace:*",
+    "@diegosancheznearcode/contracts": "workspace:*",
     "@jobsradar/domain": "workspace:*",
     "@jobsradar/events-redis": "workspace:*",
     "@jobsradar/repository-postgres": "workspace:*",

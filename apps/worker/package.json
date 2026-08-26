@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@jobsradar/adapter-wellfound": "workspace:*",
-    "@jobsradar/contracts": "workspace:*",
+    "@diegosancheznearcode/contracts": "workspace:*",
     "@jobsradar/domain": "workspace:*",
     "@jobsradar/events-redis": "workspace:*",
     "@jobsradar/repository-postgres": "workspace:*",

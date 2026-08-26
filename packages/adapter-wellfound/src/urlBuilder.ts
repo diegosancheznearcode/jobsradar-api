@@ -1,4 +1,4 @@
-import type { SearchCriteria } from "@jobsradar/contracts";
+import type { SearchCriteria } from "@diegosancheznearcode/contracts";
 
 // Construccion de URL -- ver ARCHITECTURE.md seccion 3. El frontend NO
 // simula el formulario; se construye la ruta directamente.

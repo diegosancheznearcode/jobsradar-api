@@ -1,5 +1,5 @@
-import type { Company, SearchCriteria } from "@jobsradar/contracts";
-import { CompanySchema } from "@jobsradar/contracts";
+import type { Company, SearchCriteria } from "@diegosancheznearcode/contracts";
+import { CompanySchema } from "@diegosancheznearcode/contracts";
 import { err, ok } from "@jobsradar/domain";
 import type { ExtractionError, JobSourcePort, Result } from "@jobsradar/domain";
 import type { CircuitBreaker } from "./CircuitBreaker.js";

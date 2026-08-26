@@ -1,6 +1,6 @@
 import postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Company, SearchCriteria, SearchEvent } from "@jobsradar/contracts";
+import type { Company, SearchCriteria, SearchEvent } from "@diegosancheznearcode/contracts";
 import type { EventPublisherPort, JobSourcePort } from "@jobsradar/domain";
 import { PostgresSearchRepository, runMigrations } from "@jobsradar/repository-postgres";
 import { processCompanyDetail } from "./companyDetailProcessor.js";

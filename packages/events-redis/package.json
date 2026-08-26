@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@jobsradar/contracts": "workspace:*",
+    "@diegosancheznearcode/contracts": "workspace:*",
     "@jobsradar/domain": "workspace:*",
     "ioredis": "^5.4.0"
   },

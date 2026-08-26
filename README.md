@@ -33,5 +33,5 @@ apps/
 └── worker/     Consumidores BullMQ (sección 10)
 packages/
 ├── domain/     Value Objects, puertos, Result (sección 4.2, 5) — interno
-└── contracts/  Esquemas Zod — publicado como @jobsradar/contracts (sección 4.1)
+└── contracts/  Esquemas Zod — publicado como @diegosancheznearcode/contracts (sección 4.1)
 ```

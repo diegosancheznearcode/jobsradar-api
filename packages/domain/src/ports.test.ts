@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Company, SearchCriteria } from "@jobsradar/contracts";
+import type { Company, SearchCriteria } from "@diegosancheznearcode/contracts";
 import { ok } from "./result.js";
 import type { SearchRepositoryPort, SearchSnapshot } from "./ports.js";
 

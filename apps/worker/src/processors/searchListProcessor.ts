@@ -1,4 +1,4 @@
-import type { SearchCriteria } from "@jobsradar/contracts";
+import type { SearchCriteria } from "@diegosancheznearcode/contracts";
 import type { EventPublisherPort, JobSourcePort, SearchRepositoryPort } from "@jobsradar/domain";
 
 // Cola search-list — ver ARCHITECTURE.md sección 10. Pagina /role/r/{rol}

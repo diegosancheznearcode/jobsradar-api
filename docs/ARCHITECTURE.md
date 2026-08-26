@@ -378,7 +378,7 @@ jobsradar-api/                  # backend — repo separado
 │   └── worker/                 # Consumidores BullMQ — processors/ (sección 10)
 ├── packages/
 │   ├── domain/                 # Value Objects, entidades, puertos, Result — interno, no se publica
-│   ├── contracts/               # Esquemas Zod — publicado como @jobsradar/contracts
+│   ├── contracts/               # Esquemas Zod — publicado como @diegosancheznearcode/contracts
 │   ├── adapter-wellfound/       # implementa JobSourcePort — parsers + HttpClient/BrowserClient (sección 6)
 │   ├── repository-postgres/     # implementa SearchRepositoryPort — postgres.js, sin ORM (sección 8)
 │   └── events-redis/            # implementa EventPublisherPort + subscribeToSearch (Redis pub/sub, sección 5)
@@ -386,19 +386,21 @@ jobsradar-api/                  # backend — repo separado
 
 jobsradar-web/                  # frontend — repo separado, también hexagonal (AD-08)
 ├── src/
-│   ├── domain/                 # tipos/entidades de UI derivados de @jobsradar/contracts, sin React
+│   ├── domain/                 # tipos/entidades de UI derivados de @diegosancheznearcode/contracts, sin React
 │   ├── application/             # casos de uso (runSearch, exportResults) + puertos (ver abajo)
 │   ├── infrastructure/          # adaptadores: HttpSearchAdapter, SseAdapter, CsvExportAdapter
 │   └── ui/                      # componentes, páginas, hooks (React 19 + Vite + TanStack Query/Table + Tailwind) — consume application/ solo a través de los puertos
-└── package.json                 # depende de @jobsradar/contracts como paquete versionado
+└── package.json                 # depende de @diegosancheznearcode/contracts como paquete versionado
 ```
 
-`@jobsradar/contracts` se publica desde `jobsradar-api` (registro privado — GitHub
-Packages o npm privado) en cada cambio de esquema; `jobsradar-web` lo instala
-como dependencia normal, no por workspace compartido. `packages/domain` (backend)
-queda interno al backend — no se publica ni lo consume el frontend; `jobsradar-web`
-tiene su propia carpeta `domain/`, ligera, construida sobre los tipos de
-`contracts`, no sobre las entidades/puertos del backend.
+`@diegosancheznearcode/contracts` se publica desde `jobsradar-api` a GitHub Packages
+en cada push a `main` (workflow `publish-contracts`, condicionado a que la
+versión en `packages/contracts/package.json` haya cambiado); `jobsradar-web` lo
+instala como dependencia normal (`^0.1.0`), no por workspace compartido — ver
+Fase 9 más abajo. `packages/domain` (backend) queda interno al backend — no se
+publica ni lo consume el frontend; `jobsradar-web` tiene su propia carpeta
+`domain/`, ligera, construida sobre los tipos de `contracts`, no sobre las
+entidades/puertos del backend.
 
 `packages/adapter-wellfound` (decisión de Fase 3, la sección 6 original no
 fijaba dónde vivía): paquete propio en vez de código embebido en
@@ -406,7 +408,7 @@ fijaba dónde vivía): paquete propio en vez de código embebido en
 el worker completo (sección 11) y para que `apps/api` también pueda
 importarlo si en algún momento necesita `getCompany` fuera de una cola.
 Depende de `@jobsradar/domain` (implementa `JobSourcePort`) y de
-`@jobsradar/contracts` (valida su salida contra los esquemas Zod). Sus
+`@diegosancheznearcode/contracts` (valida su salida contra los esquemas Zod). Sus
 fixtures HTML viven en `packages/adapter-wellfound/fixtures/`, copiadas y
 redactadas desde las que generó la investigación de Fase 0.
 
@@ -444,7 +446,7 @@ igual, ya que ese login ocurre dentro del mismo proceso.
 ### Fase 7 — resultado (2026-08-26)
 
 `domain/index.ts` termina re-exportando no solo los tipos de
-`@jobsradar/contracts` sino también los esquemas Zod (`SearchCriteriaSchema`,
+`@diegosancheznearcode/contracts` sino también los esquemas Zod (`SearchCriteriaSchema`,
 `SearchEventSchema`) — el formulario valida lo que manda con el primero, y
 `SseAdapter` valida en runtime cada frame SSE con el segundo antes de
 pasarlo a `application/` (un mensaje que no matchea se ignora, no tira la
@@ -484,6 +486,37 @@ búsqueda y los 3 adaptadores de infraestructura. No se verificó
 visualmente en un navegador real — este entorno no tiene esa herramienta;
 sí se confirmó que el build de producción compila, que el dev server sirve
 y transforma todos los módulos sin error, y que el conjunto de tests pasa.
+
+### Fase 9 — resultado (2026-08-26)
+
+`@jobsradar/contracts` se renombró a `@diegosancheznearcode/contracts`: GitHub
+Packages exige que el scope de un paquete npm coincida con el dueño del
+repositorio que lo publica, así que `@jobsradar/*` no era publicable ahí sin
+mover el repo a una organización propia. Se optó por renombrar en vez de crear
+una organización solo para esto — el resto de paquetes internos
+(`@jobsradar/domain`) se queda como está porque nunca se publica, solo se
+resuelve por workspace.
+
+`packages/contracts/package.json` gana `publishConfig.registry` apuntando a
+GitHub Packages. El workflow de CI de `jobsradar-api` gana un job
+`publish-contracts` (depende de `build-test`, corre solo en push a `main`)
+que compara la versión local contra `npm view` antes de publicar, para que un
+push sin bump de versión no falle intentando republicar la misma versión —
+bumpear `packages/contracts/package.json` es lo que dispara una publicación
+nueva. Usa el `GITHUB_TOKEN` por defecto del workflow (con `permissions:
+packages: write` a nivel de job), sin necesitar un secret nuevo, porque
+publicar es una acción sobre el propio repo.
+
+Del lado de `jobsradar-web`, el workaround de Fase 1 (clonar `jobsradar-api`
+como sibling en CI y symlinkear `packages/contracts/dist` para resolver el
+`file:` dependency) desaparece por completo: la dependencia pasa a ser
+`"@diegosancheznearcode/contracts": "^0.1.0"`, una versión real. Instalarla
+requiere autenticación contra `npm.pkg.github.com` (GitHub Packages no sirve
+paquetes de un repo privado sin token, ni siquiera de solo lectura) — se
+agrega un `.npmrc` con el registro scopeado y `NODE_AUTH_TOKEN` por variable
+de entorno, y el CI reutiliza el secret `JOBSRADAR_API_RO_TOKEN` (el mismo
+Personal Access Token de Fase 1, con el permiso "Packages: Read-only"
+agregado — no hizo falta un secret nuevo, solo ampliar el existente).
 
 ---
 
@@ -542,6 +575,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 6 | ✅ Completada (2026-08-26) — API BFF + SSE (ver sección 7 resultado) | 7 |
 | 7 | ✅ Completada (2026-08-26) — Frontend React hexagonal + tabla + exportación (ver sección 9.1 resultado) | — |
 | 8 | ✅ Completada (2026-08-26) — Observabilidad + alerta de selectores rotos (ver sección 11 resultado) | — |
+| 9 | ✅ Completada (2026-08-26) — `@diegosancheznearcode/contracts` publicado en GitHub Packages, reemplaza el `file:` local entre repos (ver sección 9 resultado) | — |
 
 ### Fase 0 — checklist concreto (completado)
 

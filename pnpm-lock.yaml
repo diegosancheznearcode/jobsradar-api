@@ -10,12 +10,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@diegosancheznearcode/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@fastify/cors':
         specifier: ^10.0.0
         version: 10.1.0
-      '@jobsradar/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
       '@jobsradar/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -53,12 +53,12 @@ importers:
 
   apps/worker:
     dependencies:
+      '@diegosancheznearcode/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@jobsradar/adapter-wellfound':
         specifier: workspace:*
         version: link:../../packages/adapter-wellfound
-      '@jobsradar/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
       '@jobsradar/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -96,7 +96,7 @@ importers:
 
   packages/adapter-wellfound:
     dependencies:
-      '@jobsradar/contracts':
+      '@diegosancheznearcode/contracts':
         specifier: workspace:*
         version: link:../contracts
       '@jobsradar/domain':
@@ -140,7 +140,7 @@ importers:
 
   packages/domain:
     dependencies:
-      '@jobsradar/contracts':
+      '@diegosancheznearcode/contracts':
         specifier: workspace:*
         version: link:../contracts
       zod:
@@ -159,7 +159,7 @@ importers:
 
   packages/events-redis:
     dependencies:
-      '@jobsradar/contracts':
+      '@diegosancheznearcode/contracts':
         specifier: workspace:*
         version: link:../contracts
       '@jobsradar/domain':
@@ -181,7 +181,7 @@ importers:
 
   packages/repository-postgres:
     dependencies:
-      '@jobsradar/contracts':
+      '@diegosancheznearcode/contracts':
         specifier: workspace:*
         version: link:../contracts
       '@jobsradar/domain':
