@@ -9,3 +9,4 @@ dist/
 # Sesión de Wellfound — nunca versionar (AD-05, sección 6.2)
 storageState.json
 *.storageState.json
+scripts/.cf-cookie
