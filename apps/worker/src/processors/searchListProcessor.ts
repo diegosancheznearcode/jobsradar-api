@@ -23,8 +23,15 @@ export interface SearchListDeps {
   events: EventPublisherPort;
   enqueueCompanyDetail: (data: CompanyDetailJobData) => Promise<void>;
   enqueueNextPage: (data: SearchListJobData) => Promise<void>;
+  // Tope de páginas por búsqueda — perPage confirmado en Fase 0 es 20, así
+  // que targetCompanies=50 necesita ~3 páginas en el caso normal; 10 da
+  // margen generoso para roles con mucho descarte/duplicado sin arriesgar
+  // una búsqueda que pagina indefinidamente si hasMore nunca baja a false.
+  maxPages?: number;
   log?: (message: string) => void;
 }
+
+const DEFAULT_MAX_PAGES = 10;
 
 export async function processSearchList(data: SearchListJobData, deps: SearchListDeps): Promise<void> {
   const log = deps.log ?? console.error;
@@ -72,9 +79,14 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
     page: data.page,
   });
 
+  const maxPages = deps.maxPages ?? DEFAULT_MAX_PAGES;
+
   if (hasMore && after.progress.found < after.progress.target) {
-    await deps.enqueueNextPage({ searchId: data.searchId, criteria: data.criteria, page: data.page + 1 });
-    return;
+    if (data.page < maxPages) {
+      await deps.enqueueNextPage({ searchId: data.searchId, criteria: data.criteria, page: data.page + 1 });
+      return;
+    }
+    log(`[search-list] searchId=${data.searchId} llegó al tope de ${maxPages} páginas, cierra parcial`);
   }
 
   // Termina la fase de listado. Los company-detail/job-detail ya encolados

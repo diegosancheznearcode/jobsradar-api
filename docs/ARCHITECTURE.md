@@ -601,6 +601,16 @@ porque `search-list` ya insertó la fila real en `search_results`
 se loguea y la búsqueda queda parcial en esa empresa (sección 1.3, "degradar
 sin fallar"), no reintenta contra un bloqueo que no se va a resolver solo.
 
+`search-list` también corta la paginación a los `maxPages` (10 por defecto,
+inyectable) aunque `hasMore` siga en `true` y no se haya llegado a
+`target_companies` — decisión de la Fase 10 (probando el despliegue local
+contra Wellfound real): sin este tope, un rol con mucho descarte/duplicado
+podía paginar indefinidamente. Con `perPage: 20` (Fase 0) y
+`targetCompanies` máximo 50, el caso normal necesita ~3 páginas — 10 da
+margen sin arriesgar una búsqueda colgada. Al llegar al tope la búsqueda
+cierra igual que si `hasMore` fuera `false`: `status: done`, parcial si
+`found < target`.
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
@@ -634,6 +644,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 7 | ✅ Completada (2026-08-26) — Frontend React hexagonal + tabla + exportación (ver sección 9.1 resultado) | — |
 | 8 | ✅ Completada (2026-08-26) — Observabilidad + alerta de selectores rotos (ver sección 11 resultado) | — |
 | 9 | ✅ Completada (2026-08-26) — `@diegosancheznearcode/contracts` publicado en GitHub Packages, reemplaza el `file:` local entre repos (ver sección 9 resultado) | — |
+| 10 | ✅ Completada (2026-08-28) — Despliegue local (docker-compose) validado contra Wellfound real: fix CORS del SSE (sección 7), tope de páginas en `search-list` (sección 10) | — |
 
 ### Fase 0 — checklist concreto (completado)
 

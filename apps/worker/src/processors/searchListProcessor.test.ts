@@ -111,6 +111,29 @@ describe("processSearchList", () => {
     expect(events.published).toContainEqual({ type: "done", total: 2, partial: 2 });
   });
 
+  it("corta al llegar al tope de páginas aunque hasMore siga true y no se haya llegado al target", async () => {
+    const searchId = await repository.create(criteria); // target=3
+    const adapter = fakeAdapter({ 2: { companies: [company("b")], hasMore: true } });
+    const enqueueNextPage = vi.fn().mockResolvedValue(undefined);
+    const events = fakeEvents();
+
+    await processSearchList(
+      { searchId, criteria, page: 2 },
+      {
+        adapter,
+        repository,
+        events,
+        enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined),
+        enqueueNextPage,
+        maxPages: 2,
+      },
+    );
+
+    expect(enqueueNextPage).not.toHaveBeenCalled();
+    expect((await repository.getSnapshot(searchId)).status).toBe("done");
+    expect(events.published).toContainEqual({ type: "done", total: 1, partial: 1 });
+  });
+
   it("el rank de una segunda página sigue desde donde quedó la primera", async () => {
     const searchId = await repository.create(criteria);
     await repository.attachCompany(searchId, company("a"), 1);
