@@ -18,6 +18,23 @@ pnpm dev:api      # apps/api
 pnpm dev:worker   # apps/worker
 ```
 
+## Despliegue local completo (docker-compose)
+
+```bash
+touch storageState.json   # placeholder — si no existe, Docker crea un
+                           # directorio en su lugar y el bind mount se rompe
+docker compose up -d --build
+```
+
+Levanta los 4 servicios (postgres, redis, api en :3000, worker). Sin sesión
+real, el worker igual arranca y procesa el listado (no requiere login —
+Fase 0), pero pausa cada búsqueda al llegar a `/company/{slug}` (founders,
+market, website) porque esa ruta sí exige sesión — ver `docker compose logs
+worker`. Para habilitar el enriquecimiento completo, generar `storageState.json`
+con una sesión real de Wellfound (formato Playwright: `{ cookies: [...] }`,
+ver `packages/adapter-wellfound/src/session.ts`) y sobreescribir el placeholder
+— `docker-compose.yml` ya lo monta de solo lectura en el worker.
+
 ## Estado (Fase 1 — scaffold)
 
 `apps/api` y `apps/worker` arrancan y responden, pero sus rutas/colas reales

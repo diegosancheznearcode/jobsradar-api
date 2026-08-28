@@ -43,15 +43,22 @@ services:
         condition: service_healthy
 
   worker:
-    # Fase 0 confirmó que Playwright es necesario para el login/renovación de
-    # sesión (sección 6.2); la imagen base se ajusta cuando se implemente
-    # BrowserClient en la Fase 4.
+    # BrowserClient (Fase 4) hace el login interactivo fuera de Docker (necesita
+    # una persona completando el login en un navegador real, no headless) y
+    # escribe storageState.json en el host — acá solo se monta de solo lectura
+    # para que HttpClient arme el header Cookie (packages/adapter-wellfound/src/
+    # session.ts). Si el archivo no existe, el worker igual arranca: solo se
+    # queda sin poder enriquecer /company/{slug} (founders/market/website) hasta
+    # que exista (ver sección 6.2 y Fase 9 resultado en ARCHITECTURE.md).
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
     environment:
       DATABASE_URL: postgres://jobsradar:jobsradar@postgres:5432/jobsradar
       REDIS_URL: redis://redis:6379
+      WELLFOUND_STORAGE_STATE_PATH: /repo/storageState.json
+    volumes:
+      - ./storageState.json:/repo/storageState.json:ro
     depends_on:
       postgres:
         condition: service_healthy
