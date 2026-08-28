@@ -139,4 +139,43 @@ describe("GET /api/searches/:id/stream", () => {
     // conexión simulada — unsubscribe debe tolerar llamarse más de una vez.
     expect(unsubscribe).toHaveBeenCalled();
   });
+
+  // Esta ruta escribe la respuesta con reply.raw.writeHead(), evitando el
+  // ciclo de reply de Fastify — por eso el hook onSend de @fastify/cors no
+  // corre acá como en las demás rutas. Bug real: encontrado probando la UI
+  // contra el navegador, donde el EventSource se bloqueaba por CORS aunque
+  // el origin estuviera en allowedOrigins (ver ARCHITECTURE.md Fase 9).
+  function testAppThatEndsImmediately(overrides: Partial<Parameters<typeof buildApp>[0]> = {}) {
+    return testApp({
+      subscribeToSearch: (_searchId, onEvent) => {
+        setTimeout(() => onEvent({ type: "done", total: 0, partial: 0 }), 0);
+        return () => {};
+      },
+      ...overrides,
+    });
+  }
+
+  it("incluye Access-Control-Allow-Origin cuando el origin está permitido", async () => {
+    const app = testAppThatEndsImmediately();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/searches/any-id/stream",
+      headers: { origin: "http://localhost:5173" },
+    });
+
+    expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+  });
+
+  it("no incluye Access-Control-Allow-Origin cuando el origin no está permitido", async () => {
+    const app = testAppThatEndsImmediately();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/searches/any-id/stream",
+      headers: { origin: "http://evil.example" },
+    });
+
+    expect(response.headers["access-control-allow-origin"]).toBeUndefined();
+  });
 });

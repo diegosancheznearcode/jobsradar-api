@@ -45,11 +45,22 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   app.get<{ Params: { id: string } }>("/api/searches/:id/stream", (request, reply) => {
-    reply.raw.writeHead(200, {
+    // reply.raw.writeHead() evita el ciclo de reply de Fastify por completo
+    // (necesario para poder ir escribiendo eventos a medida que llegan), así
+    // que el hook onSend de @fastify/cors nunca corre acá — a diferencia del
+    // resto de las rutas, que sí usan reply.send()/reply.header(). Sin este
+    // header a mano, el navegador bloquea el EventSource por CORS aunque
+    // origin esté en allowedOrigins (bug real encontrado probando la UI).
+    const headers: Record<string, string> = {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-    });
+    };
+    const origin = request.headers.origin;
+    if (origin && options.allowedOrigins.includes(origin)) {
+      headers["Access-Control-Allow-Origin"] = origin;
+    }
+    reply.raw.writeHead(200, headers);
 
     const unsubscribe = options.subscribeToSearch(request.params.id, (event) => {
       const payload = event as { type: string };

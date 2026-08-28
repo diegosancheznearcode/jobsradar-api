@@ -298,6 +298,20 @@ staging, producción), incluyendo el endpoint SSE (`GET
 /api/searches/:id/stream`), que además necesita `Cache-Control: no-cache` y
 mantener la conexión abierta detrás de cualquier proxy/load balancer.
 
+**Bug real, encontrado probando la UI real contra el despliegue local
+(docker-compose) — no en Fase 6, donde solo se testeó con `app.inject()`**: el
+handler de `/stream` escribe la respuesta con `reply.raw.writeHead()` para
+poder ir mandando frames a medida que llegan eventos — eso evita por completo
+el ciclo de `reply` de Fastify, así que el hook `onSend` de `@fastify/cors`
+nunca corre ahí, a diferencia de las demás rutas (`reply.send()`/
+`reply.header()`). El navegador bloqueaba el `EventSource` por CORS aunque el
+origin estuviera en `allowedOrigins`. `app.inject()` no lo había atrapado
+porque los tests de Fase 6 nunca mandaban un header `Origin` en la request
+simulada. Se arregló agregando `Access-Control-Allow-Origin` a mano en el
+`writeHead()` (reflejando el origin solo si está en `allowedOrigins`, mismo
+criterio que `@fastify/cors`) y se agregaron dos tests que sí mandan `Origin`
+para que esto no vuelva a pasar desapercibido.
+
 ---
 
 ## 8. Esquema de base de datos
