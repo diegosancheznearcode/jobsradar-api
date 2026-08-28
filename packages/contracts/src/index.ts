@@ -11,6 +11,10 @@ export const SearchCriteriaSchema = z.object({
   location: z.string().max(80).optional(),
   remoteOnly: z.boolean().default(true),
   targetCompanies: z.number().int().min(1).max(50).default(50),
+  // Filtra por el tope superior del rango que Wellfound expone en `size`
+  // ("11-50 Employees" -> 50). Opcional: sin este campo, no se filtra por
+  // tamaño (comportamiento original). Ver companySizeFilter.ts.
+  maxCompanySize: z.number().int().positive().optional(),
 });
 
 export const FounderSchema = z.object({

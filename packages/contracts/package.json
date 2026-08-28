@@ -1,6 +1,6 @@
 {
   "name": "@diegosancheznearcode/contracts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Esquemas Zod compartidos entre jobsradar-api y jobsradar-web. Ver ARCHITECTURE.md sección 4.1.",
   "type": "module",
   "main": "./dist/index.js",

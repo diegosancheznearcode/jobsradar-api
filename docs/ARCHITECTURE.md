@@ -99,6 +99,10 @@ export const SearchCriteriaSchema = z.object({
   location:   z.string().max(80).optional(),
   remoteOnly: z.boolean().default(true),
   targetCompanies: z.number().int().min(1).max(50).default(50),
+  // Opcional (v0.2.0, Fase 10) — filtra contra el tope superior del rango
+  // que ya trae `size` ("11-50 Employees" -> 50). Sin este campo, no se
+  // filtra por tamaño. Ver companySizeFilter.ts (apps/worker).
+  maxCompanySize: z.number().int().positive().optional(),
 });
 
 export const FounderSchema = z.object({
@@ -611,6 +615,21 @@ margen sin arriesgar una búsqueda colgada. Al llegar al tope la búsqueda
 cierra igual que si `hasMore` fuera `false`: `status: done`, parcial si
 `found < target`.
 
+`SearchCriteria.maxCompanySize` (sección 4.1, contracts v0.2.0) se filtra acá
+también, antes de persistir/contar/encolar cada empresa
+(`companySizeFilter.ts`, `matchesMaxCompanySize`) — así `target_companies`
+cuenta solo empresas que cumplen el filtro. Filtrar después de traer
+`targetCompanies` empresas sin filtrar hubiera devuelto muchas menos de las
+pedidas. Un rango abierto (`"5000+ Employees"`) nunca matchea un tope
+máximo; `size: null` tampoco, para no arriesgar un falso positivo.
+
+**Publicar un cambio de `contracts`:** bumpear
+`packages/contracts/package.json` (`0.1.0` → `0.2.0` para este campo) es lo
+que dispara `publish-contracts` en el próximo push a `main` (sección 9,
+Fase 9) — sin el bump, el job detecta que la versión ya existe y no
+publica nada, y `jobsradar-web` sigue instalando el schema viejo (Zod
+descarta en silencio cualquier campo que el consumidor no conoce).
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
@@ -644,7 +663,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 7 | ✅ Completada (2026-08-26) — Frontend React hexagonal + tabla + exportación (ver sección 9.1 resultado) | — |
 | 8 | ✅ Completada (2026-08-26) — Observabilidad + alerta de selectores rotos (ver sección 11 resultado) | — |
 | 9 | ✅ Completada (2026-08-26) — `@diegosancheznearcode/contracts` publicado en GitHub Packages, reemplaza el `file:` local entre repos (ver sección 9 resultado) | — |
-| 10 | ✅ Completada (2026-08-28) — Despliegue local (docker-compose) validado contra Wellfound real: fix CORS del SSE (sección 7), tope de páginas en `search-list` (sección 10) | — |
+| 10 | ✅ Completada (2026-08-28) — Despliegue local (docker-compose) validado contra Wellfound real: fix CORS del SSE (sección 7), tope de páginas en `search-list` (sección 10), filtro `maxCompanySize` (sección 4.1, contracts v0.2.0) | — |
 
 ### Fase 0 — checklist concreto (completado)
 

@@ -19,7 +19,7 @@ afterAll(async () => sql.end());
 
 const criteria: SearchCriteria = { jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 3 };
 
-function company(slug: string): Company {
+function company(slug: string, overrides: Partial<Company> = {}): Company {
   return {
     slug,
     name: slug,
@@ -31,6 +31,7 @@ function company(slug: string): Company {
     founders: [],
     jobs: [],
     extraction: { strategy: "hydrated_state", confidence: 0.6, missing: ["market", "websiteUrl", "founders"] },
+    ...overrides,
   };
 }
 
@@ -109,6 +110,37 @@ describe("processSearchList", () => {
     expect(enqueueNextPage).not.toHaveBeenCalled();
     expect((await repository.getSnapshot(searchId)).status).toBe("done");
     expect(events.published).toContainEqual({ type: "done", total: 2, partial: 2 });
+  });
+
+  it("con maxCompanySize, descarta empresas que exceden el tope antes de persistir/contar", async () => {
+    const searchCriteria: SearchCriteria = { ...criteria, maxCompanySize: 50 };
+    const searchId = await repository.create(searchCriteria);
+    const adapter = fakeAdapter({
+      1: {
+        companies: [
+          company("chica", { size: "11-50 Employees" }),
+          company("grande", { size: "501-1000 Employees" }),
+        ],
+        hasMore: false,
+      },
+    });
+    const enqueueCompanyDetail = vi.fn().mockResolvedValue(undefined);
+
+    await processSearchList(
+      { searchId, criteria: searchCriteria, page: 1 },
+      {
+        adapter,
+        repository,
+        events: fakeEvents(),
+        enqueueCompanyDetail,
+        enqueueNextPage: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    const snapshot = await repository.getSnapshot(searchId);
+    expect(snapshot.companies.map((c) => c.slug)).toEqual(["chica"]);
+    expect(enqueueCompanyDetail).toHaveBeenCalledTimes(1);
+    expect(enqueueCompanyDetail).toHaveBeenCalledWith({ searchId, slug: "chica" });
   });
 
   it("corta al llegar al tope de páginas aunque hasMore siga true y no se haya llegado al target", async () => {

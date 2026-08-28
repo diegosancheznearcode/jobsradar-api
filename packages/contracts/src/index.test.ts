@@ -23,6 +23,17 @@ describe("SearchCriteriaSchema", () => {
       SearchCriteriaSchema.parse({ jobTitle: "Backend Engineer", targetCompanies: 51 }),
     ).toThrow();
   });
+
+  it("maxCompanySize es opcional y queda undefined si no se manda", () => {
+    const result = SearchCriteriaSchema.parse({ jobTitle: "Backend Engineer" });
+    expect(result.maxCompanySize).toBeUndefined();
+  });
+
+  it("rechaza maxCompanySize no positivo", () => {
+    expect(() =>
+      SearchCriteriaSchema.parse({ jobTitle: "Backend Engineer", maxCompanySize: 0 }),
+    ).toThrow();
+  });
 });
 
 describe("FounderSchema", () => {

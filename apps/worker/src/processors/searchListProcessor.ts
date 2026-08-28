@@ -1,5 +1,6 @@
 import type { SearchCriteria } from "@diegosancheznearcode/contracts";
 import type { EventPublisherPort, JobSourcePort, SearchRepositoryPort } from "@jobsradar/domain";
+import { matchesMaxCompanySize } from "../companySizeFilter.js";
 
 // Cola search-list — ver ARCHITECTURE.md sección 10. Pagina /role/r/{rol}
 // hasta juntar targetCompanies, encolando company-detail por cada empresa
@@ -60,7 +61,13 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
     return;
   }
 
-  const { companies, hasMore } = listResult.value;
+  const { companies: allCompanies, hasMore } = listResult.value;
+  // maxCompanySize descarta acá, antes de persistir/contar/encolar — así
+  // target_companies cuenta empresas que sí cumplen el filtro, no "primeras
+  // 50 encontradas y después filtradas" (eso hubiera devuelto muchas menos
+  // de las pedidas). Encontrado probando la UI real (Fase 10).
+  const companies = allCompanies.filter((company) => matchesMaxCompanySize(company.size, data.criteria.maxCompanySize));
+
   const before = await deps.repository.getSnapshot(data.searchId);
   let rank = before.progress.found;
 
