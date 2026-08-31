@@ -33,7 +33,10 @@ services:
       PORT: 3000
       DATABASE_URL: postgres://jobsradar:jobsradar@postgres:5432/jobsradar
       REDIS_URL: redis://redis:6379
-      ALLOWED_ORIGINS: http://localhost:5173
+      # 5174, no 5173 (default de Vite): en esta máquina 5173 ya lo ocupa
+      # otro proyecto, así que jobsradar-web fija --port 5174 --strictPort
+      # en su script "dev" para no terminar en un puerto impredecible.
+      ALLOWED_ORIGINS: http://localhost:5174
     ports:
       - "3000:3000"
     depends_on:

@@ -7,7 +7,7 @@ import { buildApp } from "./app.js";
 // Contrato completo (rutas + SSE) en ARCHITECTURE.md sección 7.
 
 const PORT = Number(process.env.PORT ?? 3000);
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173")
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5174")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
