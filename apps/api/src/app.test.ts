@@ -181,15 +181,14 @@ describe("GET /api/searches/:id/export", () => {
 });
 
 describe("GET /api/searches/:id/stream", () => {
-  it("emite cada evento como un frame SSE, cierra al recibir 'done' y limpia la suscripción", async () => {
-    const unsubscribe = vi.fn();
+  it("emite cada evento como un frame SSE", async () => {
     const app = testApp({
       subscribeToSearch: (_searchId, onEvent) => {
         setTimeout(() => {
           onEvent({ type: "progress", found: 1, target: 50, page: 1 });
-          onEvent({ type: "done", total: 1, partial: 0 });
+          onEvent({ type: "error", message: "solo para cerrar la conexión en este test" });
         }, 0);
-        return unsubscribe;
+        return vi.fn();
       },
     });
 
@@ -197,10 +196,59 @@ describe("GET /api/searches/:id/stream", () => {
 
     expect(response.headers["content-type"]).toBe("text/event-stream");
     expect(response.body).toContain('data: {"type":"progress","found":1,"target":50,"page":1}');
-    expect(response.body).toContain('data: {"type":"done","total":1,"partial":0}');
-    // Se llama dos veces: una al terminar el stream (evento done) y otra
-    // desde request.raw.on("close", ...) cuando inject() cierra la
-    // conexión simulada — unsubscribe debe tolerar llamarse más de una vez.
+  });
+
+  // Bug real reportado por el usuario ("la página trae unos datos, el
+  // export otros"): company-detail/job-detail siguen enriqueciendo
+  // empresas en segundo plano bastante después de que search-list termina
+  // de paginar (rate-limit de 6-10s por request, Fase 4) — cerrar acá al
+  // ver "done" (como hacía antes) descartaba en silencio cualquier
+  // company.updated que llegara más tarde.
+  it("NO cierra el stream al recibir 'done' — sigue relayando eventos que lleguen después", async () => {
+    const company = {
+      slug: "vaulfi-1",
+      name: "VaulFi",
+      pitch: null,
+      size: null,
+      market: "Banking",
+      websiteUrl: null,
+      wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
+      founders: [],
+      jobs: [],
+      extraction: { strategy: "hydrated_state", confidence: 0.9, missing: [] },
+    };
+    const app = testApp({
+      subscribeToSearch: (_searchId, onEvent) => {
+        setTimeout(() => {
+          onEvent({ type: "done", total: 1, partial: 1 });
+          onEvent({ type: "company.updated", company });
+          onEvent({ type: "error", message: "solo para cerrar la conexión en este test" });
+        }, 0);
+        return vi.fn();
+      },
+    });
+
+    const response = await app.inject({ method: "GET", url: "/api/searches/any-id/stream" });
+
+    expect(response.body).toContain('"type":"done"');
+    expect(response.body).toContain('"type":"company.updated"');
+    expect(response.body.indexOf('"type":"done"')).toBeLessThan(response.body.indexOf('"type":"company.updated"'));
+  });
+
+  it("cierra el stream y limpia la suscripción al recibir 'error'", async () => {
+    const unsubscribe = vi.fn();
+    const app = testApp({
+      subscribeToSearch: (_searchId, onEvent) => {
+        setTimeout(() => onEvent({ type: "error", message: "listado falló" }), 0);
+        return unsubscribe;
+      },
+    });
+
+    await app.inject({ method: "GET", url: "/api/searches/any-id/stream" });
+
+    // Se llama dos veces: una al recibir 'error' y otra desde
+    // request.raw.on("close", ...) cuando inject() cierra la conexión
+    // simulada — unsubscribe debe tolerar llamarse más de una vez.
     expect(unsubscribe).toHaveBeenCalled();
   });
 
@@ -209,10 +257,13 @@ describe("GET /api/searches/:id/stream", () => {
   // corre acá como en las demás rutas. Bug real: encontrado probando la UI
   // contra el navegador, donde el EventSource se bloqueaba por CORS aunque
   // el origin estuviera en allowedOrigins (ver ARCHITECTURE.md Fase 9).
+  // "done" ya no cierra el stream (ver test de arriba) — para que
+  // app.inject() resuelva hace falta un "error", el único type que sigue
+  // cerrando la conexión.
   function testAppThatEndsImmediately(overrides: Partial<Parameters<typeof buildApp>[0]> = {}) {
     return testApp({
       subscribeToSearch: (_searchId, onEvent) => {
-        setTimeout(() => onEvent({ type: "done", total: 0, partial: 0 }), 0);
+        setTimeout(() => onEvent({ type: "error", message: "solo para cerrar la conexión en este test" }), 0);
         return () => {};
       },
       ...overrides,

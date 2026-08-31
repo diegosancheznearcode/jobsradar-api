@@ -62,10 +62,20 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     }
     reply.raw.writeHead(200, headers);
 
+    // Solo "error" cierra acá — un "done" significa que search-list terminó
+    // de paginar (sección 10), pero company-detail/job-detail pueden seguir
+    // enriqueciendo empresas ya encontradas en segundo plano durante varios
+    // minutos más (rate-limit de 6-10s por request, Fase 4). Cerrar el
+    // stream al ver "done" (como hacía antes) descartaba en silencio todo
+    // company.updated que llegara después — bug real reportado por el
+    // usuario ("la página trae unos datos, el export otros": el export lee
+    // Postgres directo, la tabla solo se entera por este stream). El
+    // cliente decide cuándo dejar de escuchar (unmount, nueva búsqueda) vía
+    // request.raw.on("close") de abajo.
     const unsubscribe = options.subscribeToSearch(request.params.id, (event) => {
       const payload = event as { type: string };
       reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
-      if (payload.type === "done" || payload.type === "error") {
+      if (payload.type === "error") {
         unsubscribe();
         reply.raw.end();
       }

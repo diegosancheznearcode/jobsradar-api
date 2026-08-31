@@ -315,6 +315,18 @@ campo.
 `company.failed` se emite y se muestra en la UI. Una búsqueda con 47 de 50 empresas
 es un éxito, no un fallo.
 
+**`GET /api/searches/:id/stream` ya NO cierra la conexión al recibir
+`done`** (sección 9.1 resultado Fase 11) — solo `error` la cierra. Antes
+cerraba en ambos casos, pero `done` solo significa que `search-list`
+terminó de paginar (sección 10); `company-detail`/`job-detail` siguen
+enriqueciendo empresas en segundo plano varios minutos más (rate-limit de
+6-10s por request, Fase 4), y cualquier `company.updated` que llegara
+después de `done` se descartaba en silencio — la conexión ya estaba
+cerrada. Bug real reportado por el usuario ("la página trae unos datos, el
+export otros": el export lee Postgres directo, siempre al día; la tabla en
+pantalla solo se entera por este stream). El cliente decide cuándo dejar de
+escuchar (nueva búsqueda, `unmount`) — no el servidor.
+
 Como `jobsradar-web` y `jobsradar-api` son repos y despliegues separados (AD-11),
 el API vive en un origen distinto al del frontend: `api` debe habilitar CORS
 explícito solo para el o los orígenes de `jobsradar-web` (por entorno: local,
