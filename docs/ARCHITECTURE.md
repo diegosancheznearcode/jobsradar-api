@@ -645,6 +645,18 @@ también lo recibe como prop y solo lo usa para filtrar — dejó de tener
 estado propio. No es parte de `SearchCriteria` ni de `onSubmit`: es un
 filtro de despliegue, nunca se manda a la API.
 
+**Dos ajustes más, mismo día** (bug real reportado por el usuario: "le di a
+encontrar 20 empresas, solo me trajo 2" — el backend había encontrado 21,
+un filtro de ubicación de una búsqueda anterior seguía activo y tapaba casi
+todo sin ningún indicio visual):
+
+- `App.tsx` resetea `locationFilter` al arrancar una búsqueda nueva
+  (`handleSubmit` envuelve `start`) — un filtro no se arrastra de una
+  búsqueda a la siguiente en silencio.
+- `ResultsTable` muestra "Mostrando X de Y empresas — filtrado por
+  ubicación" cuando el filtro reduce el resultado, para que nunca más se
+  confunda "la búsqueda encontró poco" con "el filtro está tapando cosas".
+
 ---
 
 ## 10. Colas
