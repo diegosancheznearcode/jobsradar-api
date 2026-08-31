@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import { SearchCriteriaSchema } from "@diegosancheznearcode/contracts";
 import type { SearchRepositoryPort } from "@jobsradar/domain";
-import { companiesToCsv } from "./csv.js";
+import { companiesToCsv, filterCompaniesByLocation } from "./csv.js";
 
 // Contrato completo en ARCHITECTURE.md sección 7. buildApp() separa la
 // configuración de Fastify del arranque real (index.ts) para poder testear
@@ -74,18 +74,26 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     request.raw.on("close", unsubscribe);
   });
 
-  app.get<{ Params: { id: string } }>("/api/searches/:id/export", async (request, reply) => {
-    try {
-      const snapshot = await options.repository.getSnapshot(request.params.id);
-      const csv = companiesToCsv(snapshot.companies);
-      return reply
-        .header("Content-Type", "text/csv; charset=utf-8")
-        .header("Content-Disposition", `attachment; filename="jobsradar-${request.params.id}.csv"`)
-        .send(csv);
-    } catch {
-      return reply.code(404).send({ error: "search_not_found" });
-    }
-  });
+  // ?location= es el mismo filtro que ResultsTable aplica en pantalla
+  // (jobsradar-web) — sin esto, "lo que ves" y "lo que exportás" no
+  // coinciden: bug real reportado por el usuario probando la UI (sección
+  // 9.1 resultado Fase 11).
+  app.get<{ Params: { id: string }; Querystring: { location?: string } }>(
+    "/api/searches/:id/export",
+    async (request, reply) => {
+      try {
+        const snapshot = await options.repository.getSnapshot(request.params.id);
+        const companies = filterCompaniesByLocation(snapshot.companies, request.query.location);
+        const csv = companiesToCsv(companies);
+        return reply
+          .header("Content-Type", "text/csv; charset=utf-8")
+          .header("Content-Disposition", `attachment; filename="jobsradar-${request.params.id}.csv"`)
+          .send(csv);
+      } catch {
+        return reply.code(404).send({ error: "search_not_found" });
+      }
+    },
+  );
 
   return app;
 }

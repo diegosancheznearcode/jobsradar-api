@@ -114,6 +114,70 @@ describe("GET /api/searches/:id/export", () => {
     expect(response.headers["content-type"]).toContain("text/csv");
     expect(response.body).toContain("vaulfi-1,VaulFi");
   });
+
+  it("con ?location=, exporta solo las empresas que matchean — mismo filtro que la tabla en pantalla", async () => {
+    const app = testApp();
+    const searchId = await repository.create({ jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 10 });
+    await repository.attachCompany(
+      searchId,
+      {
+        slug: "vaulfi-1",
+        name: "VaulFi",
+        pitch: null,
+        size: null,
+        market: null,
+        websiteUrl: null,
+        wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
+        founders: [],
+        jobs: [
+          {
+            externalId: "1",
+            title: "Backend Engineer",
+            location: "San Mateo",
+            isRemote: true,
+            applyUrl: "https://wellfound.com/jobs/1",
+            postedAt: null,
+          },
+        ],
+        extraction: { strategy: "hydrated_state", confidence: 0.6, missing: [] },
+      },
+      1,
+    );
+    await repository.attachCompany(
+      searchId,
+      {
+        slug: "otra-co",
+        name: "Otra Co",
+        pitch: null,
+        size: null,
+        market: null,
+        websiteUrl: null,
+        wellfoundUrl: "https://wellfound.com/company/otra-co",
+        founders: [],
+        jobs: [
+          {
+            externalId: "2",
+            title: "Backend Engineer",
+            location: "New York City",
+            isRemote: true,
+            applyUrl: "https://wellfound.com/jobs/2",
+            postedAt: null,
+          },
+        ],
+        extraction: { strategy: "hydrated_state", confidence: 0.6, missing: [] },
+      },
+      2,
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/searches/${searchId}/export?location=san%20mateo`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain("vaulfi-1,VaulFi");
+    expect(response.body).not.toContain("otra-co");
+  });
 });
 
 describe("GET /api/searches/:id/stream", () => {

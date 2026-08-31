@@ -1,0 +1,43 @@
+import { describe, expect, it } from "vitest";
+import type { Company } from "@diegosancheznearcode/contracts";
+import { filterCompaniesByLocation } from "./csv.js";
+
+function company(slug: string, jobLocations: (string | null)[]): Company {
+  return {
+    slug,
+    name: slug,
+    pitch: null,
+    size: null,
+    market: null,
+    websiteUrl: null,
+    wellfoundUrl: `https://wellfound.com/company/${slug}`,
+    founders: [],
+    jobs: jobLocations.map((location, i) => ({
+      externalId: String(i),
+      title: "Backend Engineer",
+      location,
+      isRemote: true,
+      applyUrl: `https://wellfound.com/jobs/${i}`,
+      postedAt: null,
+    })),
+    extraction: { strategy: "hydrated_state", confidence: 0.6, missing: [] },
+  };
+}
+
+describe("filterCompaniesByLocation", () => {
+  it("sin location, devuelve todas las empresas sin tocar (mismo comportamiento que antes del filtro)", () => {
+    const companies = [company("a", ["San Mateo"]), company("b", ["New York City"])];
+    expect(filterCompaniesByLocation(companies, undefined)).toEqual(companies);
+  });
+
+  it("filtra por substring, case-insensitive, contra el location de cualquiera de sus jobs", () => {
+    const companies = [company("a", ["San Mateo"]), company("b", ["New York City"])];
+    const result = filterCompaniesByLocation(companies, "san mateo");
+    expect(result.map((c) => c.slug)).toEqual(["a"]);
+  });
+
+  it("una empresa sin ningún job con location matcheable queda afuera", () => {
+    const companies = [company("a", [null]), company("b", ["San Mateo"])];
+    expect(filterCompaniesByLocation(companies, "san mateo").map((c) => c.slug)).toEqual(["b"]);
+  });
+});

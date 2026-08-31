@@ -17,6 +17,18 @@ const COLUMNS = [
   "applyUrls",
 ] as const;
 
+// Mismo criterio que el filtro de ubicación client-side de ResultsTable
+// (jobsradar-web) — substring case-insensitive contra job.location. Vive acá
+// (no en un paquete compartido) porque es la única otra vez que se necesita
+// esta lógica; si aparece una tercera, ahí sí vale la pena compartirla.
+export function filterCompaniesByLocation(companies: Company[], location: string | undefined): Company[] {
+  const needle = location?.trim().toLowerCase();
+  if (!needle) return companies;
+  return companies.filter((company) =>
+    company.jobs.some((job) => job.location?.toLowerCase().includes(needle)),
+  );
+}
+
 function escapeCsvField(value: string): string {
   if (/[",\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;

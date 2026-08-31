@@ -277,8 +277,15 @@ que el parser esté roto.
 POST /api/searches              → 202 { searchId }
 GET  /api/searches/:id          → { status, progress, companies[] }
 GET  /api/searches/:id/stream   → SSE
-GET  /api/searches/:id/export   → text/csv
+GET  /api/searches/:id/export?location=  → text/csv
 ```
+
+`?location=` en `/export` (opcional, sección 9.1 resultado Fase 11): filtra
+las empresas exportadas igual que `ResultsTable` filtra lo que se ve en
+pantalla — substring case-insensitive contra `job.location`
+(`filterCompaniesByLocation`, `apps/api/src/csv.ts`). Bug real reportado por
+el usuario: sin esto, la tabla mostraba un subconjunto filtrado pero el CSV
+exportaba todas las empresas de la búsqueda, sin relación con lo filtrado.
 
 ### 7.1 Eventos SSE
 
