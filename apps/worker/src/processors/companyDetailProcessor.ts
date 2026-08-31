@@ -49,4 +49,16 @@ export async function processCompanyDetail(data: CompanyDetailJobData, deps: Com
   }
 
   await deps.repository.attachCompany(data.searchId, result.value, 0);
+
+  // Sin esto, la UI nunca se entera de que esta empresa ya tiene
+  // founders/market/website: se queda para siempre con los datos parciales
+  // del company.found original (bug real, sección 9.1 resultado Fase 11).
+  // Se re-lee del repositorio en vez de publicar result.value directo:
+  // attachCompany mergea de forma no destructiva (COALESCE) contra lo que
+  // ya había, así que lo que hay que mandar es ese estado ya mergeado, no
+  // lo que trajo este fetch en particular.
+  const updated = await deps.repository.findCompanyBySlug(data.slug, CACHE_MAX_AGE_HOURS);
+  if (updated) {
+    await deps.events.publish(data.searchId, { type: "company.updated", company: updated });
+  }
 }

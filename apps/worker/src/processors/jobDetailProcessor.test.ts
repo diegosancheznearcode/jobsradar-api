@@ -67,14 +67,22 @@ describe("processJobDetail", () => {
       },
     });
 
+    const events = fakeEvents();
     await processJobDetail(
       { searchId, slug: "speak", jobUrl: "https://wellfound.com/jobs/3392132-backend-engineer" },
-      { fetchJobDetail, repository, events: fakeEvents() },
+      { fetchJobDetail, repository, events },
     );
 
     const found = await repository.findCompanyBySlug("speak", 24);
     expect(found?.market).toBe("Education");
     expect(found?.websiteUrl).toBe("http://speak.com");
+
+    // Mismo fix que company-detail: sin publicar company.updated, la UI se
+    // queda con los datos parciales para siempre (sección 9.1 resultado
+    // Fase 11).
+    expect(events.published).toEqual([
+      { type: "company.updated", company: expect.objectContaining({ market: "Education", websiteUrl: "http://speak.com" }) },
+    ]);
   });
 
   it("un error del fetch se loguea y no tira", async () => {

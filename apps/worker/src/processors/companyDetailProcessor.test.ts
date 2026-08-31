@@ -63,12 +63,35 @@ describe("processCompanyDetail", () => {
       listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
       getCompany: async () => ({ ok: true, value: enrichedCompany() }),
     };
+    const events = fakeEvents();
 
-    await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events: fakeEvents() });
+    await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events });
 
     const found = await repository.findCompanyBySlug("vaulfi-1", 24);
     expect(found?.founders).toHaveLength(1);
     expect(found?.market).toBe("Banking");
+  });
+
+  it("publica company.updated con el estado ya mergeado — sin esto la UI se queda con los datos parciales para siempre", async () => {
+    const searchId = await repository.create(criteria);
+    await repository.attachCompany(searchId, baseCompany(), 1);
+
+    const adapter: JobSourcePort = {
+      listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+      getCompany: async () => ({ ok: true, value: enrichedCompany() }),
+    };
+    const events = fakeEvents();
+
+    await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events });
+
+    expect(events.published).toHaveLength(1);
+    const [event] = events.published;
+    expect(event).toMatchObject({
+      type: "company.updated",
+      company: { slug: "vaulfi-1", market: "Banking", websiteUrl: "https://vaulfi.com" },
+    });
+    // company.updated no lleva rank, a diferencia de company.found.
+    expect(event).not.toHaveProperty("rank");
   });
 
   it("si ya está cacheada con founders, no vuelve a pedir getCompany", async () => {

@@ -54,4 +54,13 @@ export async function processJobDetail(data: JobDetailJobData, deps: JobDetailDe
   // rank se ignora, igual que en company-detail: search-list ya insertó
   // la fila real en search_results.
   await deps.repository.attachCompany(data.searchId, partial, 0);
+
+  // Mismo fix que company-detail (sección 9.1 resultado Fase 11): sin esto
+  // la UI nunca se entera del market/websiteUrl que este processor acaba de
+  // enriquecer. Se re-lee del repositorio, no se publica `partial` directo
+  // — attachCompany ya mergeó de forma no destructiva contra lo que había.
+  const updated = await deps.repository.findCompanyBySlug(data.slug, 24 * 7);
+  if (updated) {
+    await deps.events.publish(data.searchId, { type: "company.updated", company: updated });
+  }
 }

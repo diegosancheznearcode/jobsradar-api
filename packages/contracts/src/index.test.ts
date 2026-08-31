@@ -142,4 +142,23 @@ describe("SearchEventSchema", () => {
   it("rechaza un type desconocido", () => {
     expect(() => SearchEventSchema.parse({ type: "company.started", slug: "x" })).toThrow();
   });
+
+  it("valida company.updated con una Company completa (sin rank, a diferencia de company.found)", () => {
+    const result = SearchEventSchema.parse({
+      type: "company.updated",
+      company: {
+        slug: "vaulfi-1",
+        name: "VaulFi",
+        pitch: null,
+        size: null,
+        market: "Banking",
+        websiteUrl: "https://vaulfi.com",
+        wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
+        founders: [],
+        jobs: [],
+        extraction: { strategy: "hydrated_state", confidence: 0.9, missing: [] },
+      },
+    });
+    expect(result.type).toBe("company.updated");
+  });
 });

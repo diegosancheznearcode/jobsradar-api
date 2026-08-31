@@ -68,6 +68,18 @@ export const SearchEventSchema = z.discriminatedUnion("type", [
     rank: z.number().int().nonnegative(),
   }),
   z.object({
+    // Se publica cuando company-detail/job-detail terminan de enriquecer
+    // una empresa ya encontrada (founders/market/websiteUrl) — sin esto, la
+    // UI se queda para siempre con los datos parciales del company.found
+    // original, aunque la base de datos ya tenga la versión completa (bug
+    // real reportado por el usuario, sección 9.1 resultado Fase 11).
+    // `company` es el estado ya mergeado que devuelve el repositorio
+    // (findCompanyBySlug), no un delta — así el consumidor solo reemplaza,
+    // nunca tiene que mergear campo a campo.
+    type: z.literal("company.updated"),
+    company: CompanySchema,
+  }),
+  z.object({
     type: z.literal("company.failed"),
     slug: z.string().min(1),
     reason: z.string().min(1),

@@ -291,13 +291,26 @@ exportaba todas las empresas de la búsqueda, sin relación con lo filtrado.
 
 ```ts
 type SearchEvent =
-  | { type: 'progress';       found: number; target: number; page: number }
-  | { type: 'company.found';  company: Company; rank: number }
-  | { type: 'company.failed'; slug: string; reason: string }
-  | { type: 'paused';         reason: 'blocked' | 'rate_limited'; resumeAt: string }
-  | { type: 'done';           total: number; partial: number }
-  | { type: 'error';          message: string };
+  | { type: 'progress';        found: number; target: number; page: number }
+  | { type: 'company.found';   company: Company; rank: number }
+  | { type: 'company.updated'; company: Company }
+  | { type: 'company.failed';  slug: string; reason: string }
+  | { type: 'paused';          reason: 'blocked' | 'rate_limited'; resumeAt: string }
+  | { type: 'done';            total: number; partial: number }
+  | { type: 'error';           message: string };
 ```
+
+`company.updated` (contracts v0.3.0, sección 9.1 resultado Fase 11) — se
+publica cuando `company-detail`/`job-detail` terminan de enriquecer una
+empresa que `search-list` ya había encontrado y publicado como
+`company.found`. Sin este evento, la UI se quedaba para siempre con los
+datos parciales del listado (bug real: el CSV, que lee directo de Postgres,
+tenía founders/market/website; la tabla en pantalla, alimentada solo por
+SSE, no). `company` acá es el estado **ya mergeado** que devuelve
+`repository.findCompanyBySlug` después de `attachCompany` (que mergea de
+forma no destructiva vía `COALESCE` en SQL) — nunca un delta parcial, así
+el consumidor solo reemplaza por `slug`, nunca tiene que mergear campo a
+campo.
 
 `company.failed` se emite y se muestra en la UI. Una búsqueda con 47 de 50 empresas
 es un éxito, no un fallo.
