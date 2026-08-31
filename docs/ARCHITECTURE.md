@@ -657,6 +657,16 @@ todo sin ningún indicio visual):
   ubicación" cuando el filtro reduce el resultado, para que nunca más se
   confunda "la búsqueda encontró poco" con "el filtro está tapando cosas".
 
+**"Remote" como ubicación filtrable** (mismo pedido del usuario): `jobLocations()`
+(`ResultsTable.tsx`) agrega `"Remote"` al set de ubicaciones de cada empresa
+cuando `job.isRemote` es `true` — además de `job.location` si existe, no en
+su lugar (un rol puede ser remoto y tener ciudad propia a la vez, ej.
+"San Mateo" + remoto). Antes `isRemote` no se mostraba ni se podía filtrar
+en ningún lado de la tabla. `"remote"`/`"Remote"` matchean igual porque el
+filtro ya comparaba en minúsculas (`toLowerCase()`) de los dos lados — no
+hizo falta normalizar el valor en sí, alcanzaba con no tratarlos distinto
+en la comparación.
+
 ---
 
 ## 10. Colas
