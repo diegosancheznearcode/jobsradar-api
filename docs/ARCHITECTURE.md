@@ -580,6 +580,26 @@ quedar así indefinidamente sin que nada lo marcara. Se agrega un job
 que construye ambas imágenes en cada push/PR — no las publica ni las corre,
 solo confirma que el `docker build` no rompe.
 
+### Fase 11 — resultado (2026-08-31)
+
+Pedido explícito del usuario, probando `SearchForm` en vivo: `remoteOnly`
+queda **fijo en `true`**, sin checkbox — se saca el control de la UI (no del
+schema; `SearchCriteriaSchema.remoteOnly` sigue existiendo, solo que
+`SearchForm` ya no lo expone). Como consecuencia directa, el input de
+`location` también se saca del formulario: `buildRoleListingUrl` (sección
+3) solo usa `criteria.location` cuando `remoteOnly` es `false` — con
+`remoteOnly` fijo en `true`, ese input nunca hubiera tenido efecto en la
+búsqueda, y dejarlo hubiera sido un control fantasma.
+
+El usuario sí quería un filtro de ubicación en alguna parte — como
+Wellfound no combina remoto + ubicación en una misma búsqueda (Fase 0), el
+filtro no puede ir contra la API: va **client-side, sobre `ResultsTable`**.
+Cada `JobPosting` ya trae su propio `location` (ej. "San Mateo", aunque el
+rol sea remoto — el `remoteOnly` de la búsqueda no implica que cada job
+individual no tenga una ciudad asociada); se agrega una columna "Ubicación"
+(únicas, `job.location` por empresa) y un input que filtra las filas por
+coincidencia de substring, sin volver a pegarle a Wellfound.
+
 ---
 
 ## 10. Colas
@@ -664,6 +684,7 @@ Stack: Vitest + React Testing Library + MSW.
 | 8 | ✅ Completada (2026-08-26) — Observabilidad + alerta de selectores rotos (ver sección 11 resultado) | — |
 | 9 | ✅ Completada (2026-08-26) — `@diegosancheznearcode/contracts` publicado en GitHub Packages, reemplaza el `file:` local entre repos (ver sección 9 resultado) | — |
 | 10 | ✅ Completada (2026-08-28) — Despliegue local (docker-compose) validado contra Wellfound real: fix CORS del SSE (sección 7), tope de páginas en `search-list` (sección 10), filtro `maxCompanySize` (sección 4.1, contracts v0.2.0) | — |
+| 11 | ✅ Completada (2026-08-31) — `remoteOnly` fijo en `SearchForm` (sección 9.1 resultado), filtro de ubicación client-side en `ResultsTable` | — |
 
 ### Fase 0 — checklist concreto (completado)
 
