@@ -71,7 +71,19 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
   const before = await deps.repository.getSnapshot(data.searchId);
   let rank = before.progress.found;
 
+  // Wellfound puede repetir una empresa entre páginas del listado
+  // (paginación no perfectamente estable) — sin este chequeo, se
+  // re-publicaba company.found (duplicaba filas en la UI, bug real: React
+  // tiraba "two children with the same key") y se re-encolaba
+  // company-detail de más para una empresa que ya se estaba/había
+  // enriquecido. `search_results` ya es idempotente por (searchId, slug)
+  // a nivel SQL — esto evita el trabajo/ruido de más antes de llegar ahí.
+  const alreadyFound = new Set(before.companies.map((c) => c.slug));
+
   for (const company of companies) {
+    if (alreadyFound.has(company.slug)) continue;
+    alreadyFound.add(company.slug);
+
     rank += 1;
     await deps.repository.attachCompany(data.searchId, company, rank);
     await deps.events.publish(data.searchId, { type: "company.found", company, rank });

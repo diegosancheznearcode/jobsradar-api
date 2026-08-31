@@ -186,6 +186,36 @@ describe("processSearchList", () => {
     expect(snapshot.companies).toHaveLength(2);
   });
 
+  it("si una empresa ya se había encontrado en una página anterior, no la re-publica ni re-encola company-detail", async () => {
+    // Wellfound puede repetir una empresa entre páginas (paginación no
+    // perfectamente estable) — bug real: sin este chequeo, la UI duplicaba
+    // la fila (React: "two children with the same key") y se desperdiciaba
+    // un fetch de company-detail para una empresa ya (siendo) enriquecida.
+    const searchId = await repository.create(criteria);
+    await repository.attachCompany(searchId, company("a"), 1);
+
+    const adapter = fakeAdapter({ 2: { companies: [company("a"), company("b")], hasMore: false } });
+    const enqueueCompanyDetail = vi.fn().mockResolvedValue(undefined);
+    const events = fakeEvents();
+
+    await processSearchList(
+      { searchId, criteria, page: 2 },
+      {
+        adapter,
+        repository,
+        events,
+        enqueueCompanyDetail,
+        enqueueNextPage: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    const snapshot = await repository.getSnapshot(searchId);
+    expect(snapshot.companies.map((c) => c.slug)).toEqual(["a", "b"]);
+    expect(enqueueCompanyDetail).toHaveBeenCalledTimes(1);
+    expect(enqueueCompanyDetail).toHaveBeenCalledWith({ searchId, slug: "b" });
+    expect(events.published.filter((e) => e.type === "company.found")).toHaveLength(1);
+  });
+
   it("publica company.found por cada empresa y progress al final de la página", async () => {
     const searchId = await repository.create(criteria);
     const adapter = fakeAdapter({ 1: { companies: [company("a")], hasMore: false } });

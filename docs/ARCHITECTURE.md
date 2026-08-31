@@ -695,6 +695,20 @@ Fase 9) — sin el bump, el job detecta que la versión ya existe y no
 publica nada, y `jobsradar-web` sigue instalando el schema viejo (Zod
 descarta en silencio cualquier campo que el consumidor no conoce).
 
+**Dedup de `company.found` entre páginas** (sección 9.1 resultado Fase 11):
+Wellfound puede repetir una empresa entre dos páginas del listado
+(paginación no perfectamente estable) — `search-list` ahora arma un `Set`
+de slugs ya encontrados en esta búsqueda (`before.companies`, el snapshot
+que ya se leía antes del loop) y salta cualquier empresa repetida: no
+re-publica `company.found`, no re-encola `company-detail`. Bug real
+reportado por el usuario: React tiraba "two children with the same key" y
+la fila se duplicaba en pantalla — `search_results` ya es idempotente por
+`(searchId, slug)` a nivel SQL, pero eso no evitaba el evento SSE ni el job
+de más antes de llegar ahí. El frontend igual quedó defensivo
+(`upsertCompany` en `useSearch.ts` reemplaza por slug tanto en
+`company.found` como en `company.updated`) — no asume que el server nunca
+va a mandar un `found` repetido.
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
