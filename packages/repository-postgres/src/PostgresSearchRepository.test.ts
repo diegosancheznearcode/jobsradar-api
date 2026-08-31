@@ -129,6 +129,47 @@ describe("PostgresSearchRepository.attachCompany + findCompanyBySlug", () => {
     expect(found?.founders).toHaveLength(1);
   });
 
+  it("merge no destructivo: extraction.missing/confidence no retroceden si una llamada posterior tiene menos confianza", async () => {
+    // Bug real reportado por el usuario: founders/market/websiteUrl estaban
+    // bien guardados (protegidos por COALESCE), pero extraction_missing se
+    // sobreescribía siempre con el valor de la última llamada — si esa
+    // última era un re-hallazgo desde el listado de OTRA búsqueda (menos
+    // confianza, sin founders), la tabla mostraba "—" para datos que en
+    // realidad sí estaban ahí.
+    const searchId = await repo.create(baseCriteria);
+
+    await repo.attachCompany(
+      searchId,
+      makeCompany({
+        market: "Software",
+        websiteUrl: "https://venura.ai",
+        founders: [{ name: "Venura AI", role: null, profileUrl: null, linkedinUrl: null, source: "company_profile" }],
+        extraction: { strategy: "hydrated_state", confidence: 0.9, missing: [] },
+      }),
+      1,
+    );
+
+    // Segunda llamada: como si search-list la re-encontrara en otra
+    // búsqueda, solo con lo que trae el listado (menos confianza).
+    await repo.attachCompany(
+      searchId,
+      makeCompany({
+        market: null,
+        websiteUrl: null,
+        founders: [],
+        extraction: { strategy: "hydrated_state", confidence: 0.6, missing: ["market", "websiteUrl", "founders"] },
+      }),
+      1,
+    );
+
+    const found = await repo.findCompanyBySlug("vaulfi-1", 24);
+    expect(found?.market).toBe("Software");
+    expect(found?.websiteUrl).toBe("https://venura.ai");
+    expect(found?.founders).toHaveLength(1);
+    expect(found?.extraction.confidence).toBe(0.9);
+    expect(found?.extraction.missing).toEqual([]);
+  });
+
   it("idempotencia (searchId, slug): reintentar attachCompany no duplica la fila en search_results", async () => {
     const searchId = await repo.create(baseCriteria);
     const company = makeCompany();

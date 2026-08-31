@@ -88,9 +88,26 @@ export class PostgresSearchRepository implements SearchRepositoryPort {
           market = COALESCE(EXCLUDED.market, companies.market),
           website_url = COALESCE(EXCLUDED.website_url, companies.website_url),
           wellfound_url = EXCLUDED.wellfound_url,
-          extraction_strategy = EXCLUDED.extraction_strategy,
-          extraction_confidence = EXCLUDED.extraction_confidence,
-          extraction_missing = EXCLUDED.extraction_missing,
+          -- Mismo espíritu que pitch/size/market/website_url de arriba,
+          -- pero por confidence en vez de por null: un attachCompany
+          -- posterior con menos confianza (ej. el mismo search-list
+          -- reencontrando esta empresa en OTRA búsqueda, después de que
+          -- company-detail ya la había enriquecido) no debe pisar
+          -- extraction_missing/strategy con "todo falta" solo porque
+          -- extraction_missing SÍ se sobreescribía directo antes de este
+          -- fix — market/website_url quedaban bien (protegidos por
+          -- COALESCE) pero la UI igual mostraba "—" porque leía
+          -- extraction.missing, no el valor real. Bug real reportado por
+          -- el usuario (founders visible en Wellfound, "—" en la tabla).
+          extraction_strategy = CASE
+            WHEN EXCLUDED.extraction_confidence >= companies.extraction_confidence THEN EXCLUDED.extraction_strategy
+            ELSE companies.extraction_strategy
+          END,
+          extraction_confidence = GREATEST(EXCLUDED.extraction_confidence, companies.extraction_confidence),
+          extraction_missing = CASE
+            WHEN EXCLUDED.extraction_confidence >= companies.extraction_confidence THEN EXCLUDED.extraction_missing
+            ELSE companies.extraction_missing
+          END,
           scraped_at = now()
         RETURNING id
       `;

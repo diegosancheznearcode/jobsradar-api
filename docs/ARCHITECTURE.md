@@ -923,6 +923,22 @@ Otras decisiones:
   parciales (ej. `search-list` reprocesando) nunca pisa con `null` lo que
   una llamada anterior más completa (ej. `company-detail`) ya sabía.
   Confirmado con un test que ataca la tabla en ese orden.
+
+  **Corrección (Fase 11, bug real reportado por el usuario)**: el
+  `COALESCE` de arriba solo cubría `pitch/size/market/website_url` —
+  `extraction_strategy/confidence/missing` se sobreescribían siempre con
+  `EXCLUDED.*` sin condición. Cuando `search-list` reencontraba una empresa
+  *ya enriquecida* en una búsqueda distinta (`findCompanyBySlug` la
+  reutiliza entre búsquedas, sección 8 más abajo), esa segunda llamada
+  traía `extraction.missing: ['market','websiteUrl','founders']` con
+  confidence 0.6 (datos de listado) y pisaba la metadata de la primera
+  llamada (confidence 0.9, `missing: []`) — `market`/`website_url`
+  quedaban bien (protegidos), pero `extraction_missing` decía que faltaban
+  igual, así que la UI mostraba "—" para datos que sí estaban en la fila.
+  Se reemplazó por `CASE WHEN EXCLUDED.extraction_confidence >=
+  companies.extraction_confidence` (mismo criterio en los tres campos a la
+  vez, nunca por separado — strategy/confidence/missing describen un mismo
+  snapshot y tienen que moverse juntos) + `GREATEST` para la confidence.
 - Founders se reemplazan (`DELETE` + `INSERT`) solo cuando la llamada trae
   founders de verdad — una llamada sin founders no borra los que ya había.
 - `job-detail` no pasa por `JobSourcePort` (el puerto no lo declara,
