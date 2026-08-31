@@ -597,8 +597,21 @@ filtro no puede ir contra la API: va **client-side, sobre `ResultsTable`**.
 Cada `JobPosting` ya trae su propio `location` (ej. "San Mateo", aunque el
 rol sea remoto — el `remoteOnly` de la búsqueda no implica que cada job
 individual no tenga una ciudad asociada); se agrega una columna "Ubicación"
-(únicas, `job.location` por empresa) y un input que filtra las filas por
-coincidencia de substring, sin volver a pegarle a Wellfound.
+(únicas, `job.location` por empresa) que filtra las filas por coincidencia
+de substring, sin volver a pegarle a Wellfound.
+
+**Reposicionamiento (mismo día, mismo pedido del usuario, dos iteraciones):**
+el input del filtro arrancó viviendo *dentro* de `ResultsTable` — pero esa
+tabla no se renderiza hasta que `state.status !== "idle"` en `App.tsx`
+(recién después del primer submit), así que el input no aparecía en
+pantalla hasta buscar al menos una vez. El usuario pidió explícitamente que
+quedara visible *antes* de buscar, debajo de "Puesto" — eso solo es posible
+en `SearchForm` (siempre renderizado). El estado del filtro se termina
+levantando a `App.tsx` (`locationFilter`/`setLocationFilter`): `SearchForm`
+lo recibe como prop controlada y renderiza el input ahí, `ResultsTable`
+también lo recibe como prop y solo lo usa para filtrar — dejó de tener
+estado propio. No es parte de `SearchCriteria` ni de `onSubmit`: es un
+filtro de despliegue, nunca se manda a la API.
 
 ---
 
