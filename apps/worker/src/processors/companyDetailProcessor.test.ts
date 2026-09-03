@@ -27,6 +27,7 @@ function baseCompany(): Company {
     size: null,
     market: null,
     websiteUrl: null,
+    linkedinUrl: null,
     wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
     founders: [],
     jobs: [],
@@ -39,6 +40,7 @@ function enrichedCompany(): Company {
     ...baseCompany(),
     market: "Banking",
     websiteUrl: "https://vaulfi.com",
+    linkedinUrl: "https://www.linkedin.com/company/vaulfi",
     founders: [{ name: "Karim Khattaby", role: "CTO", profileUrl: null, linkedinUrl: null, source: "company_profile" }],
     extraction: { strategy: "hydrated_state", confidence: 0.9, missing: [] },
   };
@@ -88,7 +90,12 @@ describe("processCompanyDetail", () => {
     const [event] = events.published;
     expect(event).toMatchObject({
       type: "company.updated",
-      company: { slug: "vaulfi-1", market: "Banking", websiteUrl: "https://vaulfi.com" },
+      company: {
+        slug: "vaulfi-1",
+        market: "Banking",
+        websiteUrl: "https://vaulfi.com",
+        linkedinUrl: "https://www.linkedin.com/company/vaulfi",
+      },
     });
     // company.updated no lleva rank, a diferencia de company.found.
     expect(event).not.toHaveProperty("rank");

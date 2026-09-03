@@ -100,6 +100,7 @@ describe("GET /api/searches/:id/export", () => {
         size: "1-10 Employees",
         market: null,
         websiteUrl: null,
+        linkedinUrl: null,
         wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
         founders: [],
         jobs: [],
@@ -127,6 +128,7 @@ describe("GET /api/searches/:id/export", () => {
         size: null,
         market: null,
         websiteUrl: null,
+        linkedinUrl: null,
         wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
         founders: [],
         jobs: [
@@ -152,6 +154,7 @@ describe("GET /api/searches/:id/export", () => {
         size: null,
         market: null,
         websiteUrl: null,
+        linkedinUrl: null,
         wellfoundUrl: "https://wellfound.com/company/otra-co",
         founders: [],
         jobs: [
@@ -212,6 +215,7 @@ describe("GET /api/searches/:id/stream", () => {
       size: null,
       market: "Banking",
       websiteUrl: null,
+      linkedinUrl: null,
       wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
       founders: [],
       jobs: [],

@@ -129,6 +129,7 @@ export const CompanySchema = z.object({
   size:        z.string().nullable(),      // texto crudo: "1-10 Employees"
   market:      z.string().nullable(),
   websiteUrl:  z.string().url().nullable(),
+  linkedinUrl: z.string().url().nullable(), // de la EMPRESA, no de un founder — v0.4.0
   wellfoundUrl: z.string().url(),
   founders:    z.array(FounderSchema).default([]),
   jobs:        z.array(JobPostingSchema).default([]),
@@ -694,6 +695,21 @@ Windows con locale es-\*) puede detectar mal la codificación al abrir un
 CSV con doble clic y romper acentos/ñ, o no reconocer bien la primera fila
 como encabezado. Otros lectores de CSV (Google Sheets, `pandas`, etc.)
 ignoran el BOM sin problema.
+
+**LinkedIn de la empresa (`Company.linkedinUrl`, contracts v0.4.0)**: el
+usuario señaló, viendo la página real de una empresa en Wellfound, un ícono
+de LinkedIn junto al campo Website — no es de un founder puntual, es un
+campo de la empresa. El dato ya estaba confirmado desde la Fase 0
+("También trae companyUrl, linkedInUrl... redundantes con lo que ya daba
+/jobs/{id}") pero nunca se conectó al parser real. `startup.linkedInUrl` es
+un campo hermano de `startup.companyUrl` en el mismo nodo Apollo que ya usa
+`CompanyProfileParser` para `websiteUrl` — agregarlo fue extender ese mismo
+extractor, no una investigación nueva. Solo lo trae el perfil de la empresa
+(`/company/{slug}`), igual que founders/market/websiteUrl: el listado y el
+detalle de vacante quedan en `null` con `linkedinUrl` en
+`extraction.missing`. Nueva columna `linkedin_url` en `companies`
+(migración `002_company_linkedin_url.sql`), protegida por el mismo
+`COALESCE` no destructivo que `website_url`.
 
 ---
 

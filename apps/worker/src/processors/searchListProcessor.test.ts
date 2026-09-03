@@ -27,6 +27,7 @@ function company(slug: string, overrides: Partial<Company> = {}): Company {
     size: null,
     market: null,
     websiteUrl: null,
+    linkedinUrl: null,
     wellfoundUrl: `https://wellfound.com/company/${slug}`,
     founders: [],
     jobs: [],

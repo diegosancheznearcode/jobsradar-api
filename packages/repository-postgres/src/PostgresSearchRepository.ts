@@ -14,6 +14,7 @@ interface CompanyRow {
   size: string | null;
   market: string | null;
   website_url: string | null;
+  linkedin_url: string | null;
   wellfound_url: string;
   extraction_strategy: string;
   extraction_confidence: number;
@@ -69,12 +70,12 @@ export class PostgresSearchRepository implements SearchRepositoryPort {
     await this.sql.begin(async (tx) => {
       const [companyRow] = await tx<{ id: string }[]>`
         INSERT INTO companies (
-          slug, name, pitch, size, market, website_url, wellfound_url,
+          slug, name, pitch, size, market, website_url, linkedin_url, wellfound_url,
           extraction_strategy, extraction_confidence, extraction_missing, scraped_at
         )
         VALUES (
           ${company.slug}, ${company.name}, ${company.pitch}, ${company.size},
-          ${company.market}, ${company.websiteUrl}, ${company.wellfoundUrl},
+          ${company.market}, ${company.websiteUrl}, ${company.linkedinUrl}, ${company.wellfoundUrl},
           ${company.extraction.strategy}, ${company.extraction.confidence},
           ${company.extraction.missing}, now()
         )
@@ -87,6 +88,7 @@ export class PostgresSearchRepository implements SearchRepositoryPort {
           size = COALESCE(EXCLUDED.size, companies.size),
           market = COALESCE(EXCLUDED.market, companies.market),
           website_url = COALESCE(EXCLUDED.website_url, companies.website_url),
+          linkedin_url = COALESCE(EXCLUDED.linkedin_url, companies.linkedin_url),
           wellfound_url = EXCLUDED.wellfound_url,
           -- Mismo espíritu que pitch/size/market/website_url de arriba,
           -- pero por confidence en vez de por null: un attachCompany
@@ -212,6 +214,7 @@ export class PostgresSearchRepository implements SearchRepositoryPort {
       size: row.size,
       market: row.market,
       websiteUrl: row.website_url,
+      linkedinUrl: row.linkedin_url,
       wellfoundUrl: row.wellfound_url,
       founders: founderRows.map((f) => ({
         name: f.name,

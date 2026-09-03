@@ -37,6 +37,7 @@ function baseCompany(): Company {
     size: null,
     market: null,
     websiteUrl: null,
+    linkedinUrl: null,
     wellfoundUrl: "https://wellfound.com/company/speak",
     founders: [],
     jobs: [],

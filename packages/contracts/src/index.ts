@@ -41,6 +41,11 @@ export const CompanySchema = z.object({
   size: z.string().nullable(), // texto crudo: "1-10 Employees"
   market: z.string().nullable(),
   websiteUrl: z.string().url().nullable(),
+  // LinkedIn de la EMPRESA (no de un founder puntual) — mismo nodo Apollo
+  // que websiteUrl ("companyUrl"/"linkedInUrl" son campos hermanos, ver
+  // CompanyProfileParser). Solo lo trae el perfil de la empresa (Fase 4/6.1),
+  // no el listado ni el detalle de vacante — null en esos casos.
+  linkedinUrl: z.string().url().nullable(),
   wellfoundUrl: z.string().url(),
   founders: z.array(FounderSchema).default([]),
   jobs: z.array(JobPostingSchema).default([]),

@@ -10,6 +10,7 @@ function company(slug: string, jobLocations: (string | null)[]): Company {
     size: null,
     market: null,
     websiteUrl: null,
+    linkedinUrl: null,
     wellfoundUrl: `https://wellfound.com/company/${slug}`,
     founders: [],
     jobs: jobLocations.map((location, i) => ({
@@ -70,8 +71,23 @@ describe("companiesToCsv", () => {
     expect(header).toContain("Tamaño");
     expect(header).toContain("Sitio web");
     expect(header).toContain("Fundadores");
+    expect(header).toContain("LinkedIn");
     expect(header).not.toContain("websiteUrl");
     expect(header).not.toContain("jobTitles");
+  });
+
+  it("incluye la URL de LinkedIn de la empresa (no de un founder)", () => {
+    // Pedido explícito del usuario, viendo el ícono de LinkedIn junto al
+    // Website en la página real de Wellfound — ese dato es de la EMPRESA,
+    // no de un founder puntual (sección 9.1 resultado Fase 11).
+    const withLinkedin: Company = {
+      ...company("a", ["San Mateo"]),
+      linkedinUrl: "https://www.linkedin.com/company/vaulfi",
+    };
+
+    const csv = companiesToCsv([withLinkedin]);
+
+    expect(csv).toContain("https://www.linkedin.com/company/vaulfi");
   });
 
   it("empieza con un BOM UTF-8, para que Excel abra los acentos bien al hacer doble clic", () => {

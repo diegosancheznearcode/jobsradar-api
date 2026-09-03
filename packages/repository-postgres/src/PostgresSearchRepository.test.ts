@@ -39,6 +39,7 @@ function makeCompany(overrides: Partial<Company> = {}): Company {
     size: "1-10 Employees",
     market: null,
     websiteUrl: null,
+    linkedinUrl: null,
     wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
     founders: [],
     jobs: [],
@@ -115,17 +116,23 @@ describe("PostgresSearchRepository.attachCompany + findCompanyBySlug", () => {
       makeCompany({
         market: "Banking",
         websiteUrl: "https://vaulfi.com",
+        linkedinUrl: "https://www.linkedin.com/company/vaulfi",
         founders: [{ name: "Karim Khattaby", role: "CTO", profileUrl: null, linkedinUrl: null, source: "company_profile" }],
       }),
       1,
     );
 
-    // Segunda llamada: como si viniera del listado, sin market/website/founders.
-    await repo.attachCompany(searchId, makeCompany({ market: null, websiteUrl: null, founders: [] }), 1);
+    // Segunda llamada: como si viniera del listado, sin market/website/linkedin/founders.
+    await repo.attachCompany(
+      searchId,
+      makeCompany({ market: null, websiteUrl: null, linkedinUrl: null, founders: [] }),
+      1,
+    );
 
     const found = await repo.findCompanyBySlug("vaulfi-1", 24);
     expect(found?.market).toBe("Banking");
     expect(found?.websiteUrl).toBe("https://vaulfi.com");
+    expect(found?.linkedinUrl).toBe("https://www.linkedin.com/company/vaulfi");
     expect(found?.founders).toHaveLength(1);
   });
 

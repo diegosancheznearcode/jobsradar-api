@@ -26,6 +26,11 @@ export interface CompanyProfileResult {
   founders: Founder[];
   market: string | null;
   websiteUrl: string | null;
+  // LinkedIn de la EMPRESA (no de un founder) — mismo nodo Startup que
+  // websiteUrl (companyUrl/linkedInUrl son campos hermanos), confirmado en
+  // Fase 0 pero nunca conectado hasta ahora (pedido explícito del usuario,
+  // viendo el ícono de LinkedIn junto al Website en la página real).
+  linkedinUrl: string | null;
 }
 
 export function parseCompanyProfile(
@@ -81,6 +86,7 @@ function extractFromHydratedState(html: string): CompanyProfileResult | null {
     founders,
     market,
     websiteUrl: startup.companyUrl ?? null,
+    linkedinUrl: startup.linkedInUrl || null,
   };
 }
 

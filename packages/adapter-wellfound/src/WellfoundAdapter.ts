@@ -76,13 +76,17 @@ export class WellfoundAdapter implements JobSourcePort {
       size: p.size,
       market: p.market,
       websiteUrl: p.websiteUrl,
+      linkedinUrl: p.linkedinUrl,
       wellfoundUrl: url,
       founders: p.founders,
       jobs: [],
       extraction: {
         strategy: parsed.value.strategy,
         confidence: p.founders.length > 0 ? 0.9 : 0.7,
-        missing: p.founders.length > 0 ? [] : ["founders"],
+        missing: [
+          ...(p.founders.length > 0 ? [] : ["founders"]),
+          ...(p.linkedinUrl ? [] : ["linkedinUrl"]),
+        ],
       },
     });
 

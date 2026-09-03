@@ -27,7 +27,7 @@ describe("parseCompanyProfile", () => {
     if (!result.ok) throw new Error("unreachable");
     expect(result.value.strategy).toBe("hydrated_state");
 
-    const { founders, market, websiteUrl, slug, name, pitch, size } = result.value.data;
+    const { founders, market, websiteUrl, linkedinUrl, slug, name, pitch, size } = result.value.data;
     expect(founders).toHaveLength(1);
     expect(founders[0]).toMatchObject({
       name: "Karim Khattaby",
@@ -38,6 +38,10 @@ describe("parseCompanyProfile", () => {
     });
     expect(websiteUrl).toBe("https://vaulfi.com");
     expect(market).toContain("Banking");
+    // LinkedIn de la EMPRESA (campo hermano de websiteUrl en el mismo nodo
+    // Startup) — confirmado en Fase 0 pero nunca conectado hasta que el
+    // usuario lo señaló viendo la página real (sección 9.1 resultado Fase 11).
+    expect(linkedinUrl).toBe("https://www.linkedin.com/company/vaulfi");
 
     expect(slug).toBe("vaulfi-1");
     expect(name).toBe("VaulFi");

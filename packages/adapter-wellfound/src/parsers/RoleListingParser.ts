@@ -10,10 +10,11 @@ import { humanizeCompanySize } from "../companySize.js";
 // ARCHITECTURE.md sección 6 y el hallazgo de Fase 0: gana `hydrated_state`
 // (Apollo/__NEXT_DATA__); no hay JSON-LD en esta ruta.
 //
-// El listado NO trae market/websiteUrl/founders — quedan en null y se
-// listan en extraction.missing, tal como exige la regla de nulabilidad de
-// la sección 4.1. `JobSourcePort.listCompanies` (sección 5) devuelve estos
-// Company parciales directamente (ampliado en Fase 5 — ver ARCHITECTURE.md).
+// El listado NO trae market/websiteUrl/founders/linkedinUrl — quedan en
+// null y se listan en extraction.missing, tal como exige la regla de
+// nulabilidad de la sección 4.1. `JobSourcePort.listCompanies` (sección 5)
+// devuelve estos Company parciales directamente (ampliado en Fase 5 — ver
+// ARCHITECTURE.md).
 
 export interface RoleListingPage {
   companies: Company[];
@@ -88,13 +89,14 @@ function toCompany(startup: Record<string, any>, apollo: Record<string, any>): C
     size: humanizeCompanySize(startup.companySize),
     market: null,
     websiteUrl: null,
+    linkedinUrl: null,
     wellfoundUrl: `https://wellfound.com/company/${startup.slug}`,
     founders: [],
     jobs,
     extraction: {
       strategy: "hydrated_state" as const,
       confidence: 0.6,
-      missing: ["market", "websiteUrl", "founders"],
+      missing: ["market", "websiteUrl", "founders", "linkedinUrl"],
     },
   };
 

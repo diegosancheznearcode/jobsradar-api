@@ -54,6 +54,7 @@ describe("SearchRepositoryPort (implementación en memoria)", () => {
       size: null,
       market: null,
       websiteUrl: null,
+      linkedinUrl: null,
       wellfoundUrl: "https://wellfound.com/company/vaulfi-1",
       founders: [],
       jobs: [],

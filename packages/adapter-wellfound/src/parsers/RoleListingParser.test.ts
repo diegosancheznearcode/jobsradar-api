@@ -39,7 +39,7 @@ describe("parseRoleListing", () => {
       expect(company.websiteUrl).toBeNull();
       expect(company.founders).toEqual([]);
       expect(company.extraction.strategy).toBe("hydrated_state");
-      expect(company.extraction.missing).toEqual(["market", "websiteUrl", "founders"]);
+      expect(company.extraction.missing).toEqual(["market", "websiteUrl", "founders", "linkedinUrl"]);
     }
   });
 

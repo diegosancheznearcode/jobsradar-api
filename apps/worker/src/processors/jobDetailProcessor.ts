@@ -41,13 +41,16 @@ export async function processJobDetail(data: JobDetailJobData, deps: JobDetailDe
     size: null,
     market: company.market,
     websiteUrl: company.websiteUrl,
+    // /jobs/{id} (JSON-LD) no trae LinkedIn de la empresa — solo el perfil
+    // (CompanyProfileParser) lo tiene.
+    linkedinUrl: null,
     wellfoundUrl: `https://wellfound.com/company/${data.slug}`,
     founders: [],
     jobs: [],
     extraction: {
       strategy: result.value.strategy,
       confidence: 0.5,
-      missing: ["pitch", "size", "founders"],
+      missing: ["pitch", "size", "founders", "linkedinUrl"],
     },
   });
 
