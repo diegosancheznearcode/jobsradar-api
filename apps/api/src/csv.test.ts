@@ -54,7 +54,28 @@ describe("companiesToCsv", () => {
 
     const csv = companiesToCsv([withDates]);
 
-    expect(csv).toContain("postedDates");
+    expect(csv).toContain("Fecha de publicación");
     expect(csv).toContain("2026-08-27; ");
+  });
+
+  it("los encabezados están en español, no los nombres internos en inglés", () => {
+    // Bug real reportado por el usuario: al abrir el CSV en Excel, salían
+    // "Column1, Column2..." en vez de nombres legibles — el problema real
+    // era que quería los encabezados en español, no en el inglés interno
+    // (slug, name, websiteUrl...) que se usaba antes.
+    const csv = companiesToCsv([company("a", ["San Mateo"])]);
+    const header = csv.split("\n")[0]!;
+
+    expect(header).toContain("Empresa");
+    expect(header).toContain("Tamaño");
+    expect(header).toContain("Sitio web");
+    expect(header).toContain("Fundadores");
+    expect(header).not.toContain("websiteUrl");
+    expect(header).not.toContain("jobTitles");
+  });
+
+  it("empieza con un BOM UTF-8, para que Excel abra los acentos bien al hacer doble clic", () => {
+    const csv = companiesToCsv([company("a", ["San Mateo"])]);
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
   });
 });

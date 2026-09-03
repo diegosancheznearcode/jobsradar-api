@@ -18,6 +18,24 @@ const COLUMNS = [
   "applyUrls",
 ] as const;
 
+// Nombre interno (clave del objeto row, en inglés — así queda) vs. el
+// encabezado real de la columna en el CSV, en español (pedido explícito
+// del usuario). Separado del array COLUMNS de arriba a propósito: ese
+// array sigue siendo la lista de claves que usa el resto de la función.
+const COLUMN_LABELS: Record<(typeof COLUMNS)[number], string> = {
+  slug: "Identificador",
+  name: "Empresa",
+  pitch: "Pitch",
+  size: "Tamaño",
+  market: "Mercado",
+  websiteUrl: "Sitio web",
+  wellfoundUrl: "URL de Wellfound",
+  founders: "Fundadores",
+  jobTitles: "Roles",
+  postedDates: "Fecha de publicación",
+  applyUrls: "URLs de postulación",
+};
+
 // Mismo criterio que el filtro de ubicación client-side de ResultsTable
 // (jobsradar-web) — substring case-insensitive contra job.location. Vive acá
 // (no en un paquete compartido) porque es la única otra vez que se necesita
@@ -38,7 +56,7 @@ function escapeCsvField(value: string): string {
 }
 
 export function companiesToCsv(companies: Company[]): string {
-  const header = COLUMNS.join(",");
+  const header = COLUMNS.map((col) => COLUMN_LABELS[col]).join(",");
   const rows = companies.map((company) => {
     const founders = company.founders.map((f) => (f.role ? `${f.name} (${f.role})` : f.name)).join("; ");
     const jobTitles = company.jobs.map((j) => j.title).join("; ");
@@ -64,5 +82,12 @@ export function companiesToCsv(companies: Company[]): string {
     return COLUMNS.map((col) => escapeCsvField(row[col])).join(",");
   });
 
-  return [header, ...rows].join("\n") + "\n";
+  // BOM UTF-8 al inicio — sin esto, Excel (sobre todo en Windows con
+  // locale es-*) puede abrir el archivo asumiendo una codificación
+  // distinta y romper los acentos ("Método" -> "MÃ©todo"), o directamente
+  // no reconocer bien la primera fila como encabezado al abrir con doble
+  // clic. No afecta a otros lectores de CSV (Google Sheets, pandas, etc.),
+  // que lo ignoran.
+  const BOM = "﻿";
+  return BOM + [header, ...rows].join("\n") + "\n";
 }

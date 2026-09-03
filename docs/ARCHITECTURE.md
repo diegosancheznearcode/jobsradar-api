@@ -682,6 +682,19 @@ campo (`FounderSchema.linkedinUrl` queda `null` siempre, por diseño, no es
 un bug). Pendiente investigar si existe en alguna otra ruta antes de
 prometer que se puede sacar.
 
+**Encabezados del CSV en español + BOM UTF-8** (bug real reportado por el
+usuario: Excel mostraba "Column1, Column2..." al abrir el archivo). El
+`COLUMNS` de `apps/api/src/csv.ts` sigue siendo las claves internas en
+inglés (`slug`, `websiteUrl`, `jobTitles`...) — se agrega un
+`COLUMN_LABELS` aparte que traduce cada clave a su encabezado real en
+español (`Identificador`, `Sitio web`, `Roles`...) solo para la fila de
+header del CSV, sin tocar el resto de la función. Además, `companiesToCsv`
+ahora antepone un BOM UTF-8 (`﻿`) al archivo — sin eso, Excel (más en
+Windows con locale es-\*) puede detectar mal la codificación al abrir un
+CSV con doble clic y romper acentos/ñ, o no reconocer bien la primera fila
+como encabezado. Otros lectores de CSV (Google Sheets, `pandas`, etc.)
+ignoran el BOM sin problema.
+
 ---
 
 ## 10. Colas
