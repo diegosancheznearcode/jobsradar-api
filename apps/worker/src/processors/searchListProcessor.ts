@@ -70,6 +70,7 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
 
   const before = await deps.repository.getSnapshot(data.searchId);
   let rank = before.progress.found;
+  const target = before.progress.target;
 
   // Wellfound puede repetir una empresa entre páginas del listado
   // (paginación no perfectamente estable) — sin este chequeo, se
@@ -82,8 +83,15 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
 
   for (const company of companies) {
     if (alreadyFound.has(company.slug)) continue;
-    alreadyFound.add(company.slug);
+    // Bug real reportado por el usuario: con target_companies=3, una sola
+    // página del listado (hasta 20 empresas, perPage confirmado en Fase 0)
+    // se procesaba entera antes de chequear el target — "3" no era un tope
+    // real, solo decidía si pedir otra página. Cortar acá, a mitad de
+    // página, es lo que hace que target_companies realmente limite cuántas
+    // empresas termina teniendo la búsqueda.
+    if (rank >= target) break;
 
+    alreadyFound.add(company.slug);
     rank += 1;
     await deps.repository.attachCompany(data.searchId, company, rank);
     await deps.events.publish(data.searchId, { type: "company.found", company, rank });

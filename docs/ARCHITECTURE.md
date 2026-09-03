@@ -749,6 +749,17 @@ margen sin arriesgar una búsqueda colgada. Al llegar al tope la búsqueda
 cierra igual que si `hasMore` fuera `false`: `status: done`, parcial si
 `found < target`.
 
+**`target_companies` corta a mitad de página, no solo entre páginas**
+(bug real reportado por el usuario: con `targetCompanies=3` la UI mostraba
+"13 / 3 empresas" — 13 filas en la tabla). El loop que procesa
+`companies` de una página ahora chequea `rank >= target` en cada
+iteración y corta ahí (`break`), no solo después de terminar la página
+entera. Antes, `target_companies` solo decidía si pedir *otra página* —
+como cada página trae hasta `perPage: 20` empresas (Fase 0), un target
+chico como 3 igual terminaba persistiendo/enriqueciendo las ~20 de la
+primera página completa antes de darse cuenta de que ya había pasado el
+target.
+
 `SearchCriteria.maxCompanySize` (sección 4.1, contracts v0.2.0) se filtra acá
 también, antes de persistir/contar/encolar cada empresa
 (`companySizeFilter.ts`, `matchesMaxCompanySize`) — así `target_companies`

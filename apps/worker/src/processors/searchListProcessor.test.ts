@@ -113,6 +113,34 @@ describe("processSearchList", () => {
     expect(events.published).toContainEqual({ type: "done", total: 2, partial: 2 });
   });
 
+  it("corta a mitad de página al llegar al target — no procesa la página entera si target < companies de la página", async () => {
+    // Bug real reportado por el usuario: con targetCompanies=3, una sola
+    // página del listado (hasta 20 empresas) se procesaba entera antes de
+    // chequear el target — "3" solo decidía si pedir otra página, nunca
+    // limitaba cuántas empresas terminaba teniendo la búsqueda (la UI
+    // mostraba "13 / 3 empresas" con 13 filas en la tabla).
+    const searchId = await repository.create({ ...criteria, targetCompanies: 3 });
+    const adapter = fakeAdapter({
+      1: {
+        companies: [company("a"), company("b"), company("c"), company("d"), company("e")],
+        hasMore: true,
+      },
+    });
+    const enqueueCompanyDetail = vi.fn().mockResolvedValue(undefined);
+    const enqueueNextPage = vi.fn().mockResolvedValue(undefined);
+
+    await processSearchList(
+      { searchId, criteria: { ...criteria, targetCompanies: 3 }, page: 1 },
+      { adapter, repository, events: fakeEvents(), enqueueCompanyDetail, enqueueNextPage },
+    );
+
+    const snapshot = await repository.getSnapshot(searchId);
+    expect(snapshot.companies.map((c) => c.slug)).toEqual(["a", "b", "c"]);
+    expect(snapshot.status).toBe("done");
+    expect(enqueueCompanyDetail).toHaveBeenCalledTimes(3);
+    expect(enqueueNextPage).not.toHaveBeenCalled();
+  });
+
   it("con maxCompanySize, descarta empresas que exceden el tope antes de persistir/contar", async () => {
     const searchCriteria: SearchCriteria = { ...criteria, maxCompanySize: 50 };
     const searchId = await repository.create(searchCriteria);
