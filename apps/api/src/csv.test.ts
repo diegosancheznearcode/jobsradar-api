@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Company } from "@diegosancheznearcode/contracts";
-import { filterCompaniesByLocation } from "./csv.js";
+import { companiesToCsv, filterCompaniesByLocation } from "./csv.js";
 
 function company(slug: string, jobLocations: (string | null)[]): Company {
   return {
@@ -39,5 +39,22 @@ describe("filterCompaniesByLocation", () => {
   it("una empresa sin ningún job con location matcheable queda afuera", () => {
     const companies = [company("a", [null]), company("b", ["San Mateo"])];
     expect(filterCompaniesByLocation(companies, "san mateo").map((c) => c.slug)).toEqual(["b"]);
+  });
+});
+
+describe("companiesToCsv", () => {
+  it("incluye postedDates como fecha ISO (YYYY-MM-DD), un valor por job en el mismo orden que jobTitles", () => {
+    const withDates: Company = {
+      ...company("a", ["San Mateo"]),
+      jobs: [
+        { ...company("a", ["San Mateo"]).jobs[0]!, title: "Backend Engineer", postedAt: new Date("2026-08-27T17:45:44Z") },
+        { ...company("a", ["San Mateo"]).jobs[0]!, title: "Frontend Engineer", postedAt: null },
+      ],
+    };
+
+    const csv = companiesToCsv([withDates]);
+
+    expect(csv).toContain("postedDates");
+    expect(csv).toContain("2026-08-27; ");
   });
 });

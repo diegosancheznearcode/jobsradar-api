@@ -14,6 +14,7 @@ const COLUMNS = [
   "wellfoundUrl",
   "founders",
   "jobTitles",
+  "postedDates",
   "applyUrls",
 ] as const;
 
@@ -41,6 +42,9 @@ export function companiesToCsv(companies: Company[]): string {
   const rows = companies.map((company) => {
     const founders = company.founders.map((f) => (f.role ? `${f.name} (${f.role})` : f.name)).join("; ");
     const jobTitles = company.jobs.map((j) => j.title).join("; ");
+    // Mismo orden que jobTitles/applyUrls (uno por job, por índice) — un job
+    // sin fecha deja el hueco vacío en vez de correr el resto de la lista.
+    const postedDates = company.jobs.map((j) => (j.postedAt ? j.postedAt.toISOString().slice(0, 10) : "")).join("; ");
     const applyUrls = company.jobs.map((j) => j.applyUrl).join("; ");
 
     const row: Record<(typeof COLUMNS)[number], string> = {
@@ -53,6 +57,7 @@ export function companiesToCsv(companies: Company[]): string {
       wellfoundUrl: company.wellfoundUrl,
       founders,
       jobTitles,
+      postedDates,
       applyUrls,
     };
 

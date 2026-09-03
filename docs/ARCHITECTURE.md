@@ -667,6 +667,21 @@ filtro ya comparaba en minúsculas (`toLowerCase()`) de los dos lados — no
 hizo falta normalizar el valor en sí, alcanzaba con no tratarlos distinto
 en la comparación.
 
+**Fecha de publicación visible** (pedido explícito del usuario): `job.postedAt`
+ya se extraía y guardaba correctamente desde Fase 3 — nunca fue un bug de
+extracción, solo no se mostraba en ningún lado. Se agrega una columna
+"Publicado" en `ResultsTable` (la fecha más reciente entre los roles de la
+empresa, formateada con `toLocaleDateString('es')`) y una columna
+`postedDates` en el CSV (`apps/api/src/csv.ts`, una fecha ISO por job, mismo
+orden que `jobTitles`/`applyUrls`, hueco vacío si un job no tiene fecha —
+no corre el resto de la lista).
+
+**URL de LinkedIn del founder** (mismo pedido): sigue sin extraerse — Fase 0
+ya había confirmado que el query de `/company/{slug}/people` no expone ese
+campo (`FounderSchema.linkedinUrl` queda `null` siempre, por diseño, no es
+un bug). Pendiente investigar si existe en alguna otra ruta antes de
+prometer que se puede sacar.
+
 ---
 
 ## 10. Colas
