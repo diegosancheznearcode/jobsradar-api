@@ -714,6 +714,43 @@ detalle de vacante quedan en `null` con `linkedinUrl` en
 patrón que la columna "Sitio" (link si hay URL, `—` si no) y misma columna
 `LinkedIn` (en español, junto al resto) en el CSV export.
 
+### Fase 12 — resultado (2026-09-03)
+
+Tres pedidos explícitos del usuario, usando la app en vivo, sobre el mismo
+formulario de búsqueda:
+
+**El filtro de ubicación ya no se borra al buscar** ("no borres los
+filtros... cuando le doy consultar quita la ubicacion") — revierte la mitad
+del ajuste de Fase 11 que reseteaba `locationFilter` en `handleSubmit`
+(`App.tsx`). Ese reset se había agregado para el bug "le di a encontrar 20
+empresas, solo me trajo 2", pero el usuario prefiere que el filtro persista
+entre búsquedas y confía en el indicador "Mostrando X de Y empresas —
+filtrado por ubicación" (que sigue intacto) para notar cuándo el filtro
+viejo está tapando resultados nuevos. `handleSubmit` vuelve a ser solo
+`start(criteria)`, sin tocar `locationFilter`.
+
+**Botón "Limpiar"** ("necesito colocar un boton de limpiar que me restaure
+todo y elimine las busquedas"): restaura el formulario completo (Puesto,
+Ubicación, Cantidad de empresas a su default `"50"`) y llama a un nuevo
+`reset()` de `useSearch` que desuscribe cualquier sesión SSE activa
+(`unsubscribeRef`) y vuelve `state` a `initialState` — mismo mecanismo que
+usa `start()` antes de arrancar una búsqueda nueva. Para que el botón (que
+vive en `App.tsx`, fuera de `SearchForm`) pueda resetear Puesto y Cantidad,
+esos dos campos se levantan de estado interno de `SearchForm` a props
+controladas en `App.tsx` (`jobTitle`/`onJobTitleChange`,
+`targetCompanies`/`onTargetCompaniesChange`), siguiendo el mismo patrón que
+ya tenía `locationFilter` desde Fase 11. El error de validación del
+formulario (jobTitle muy corto) queda como estado interno de `SearchForm`
+— no hay ninguna razón para levantarlo, nadie fuera del formulario lo
+necesita.
+
+**Puesto y Ubicación en fila horizontal, no apilados** ("puede colocar los
+campos puesto y ubicacion de manera horizontal y no vertical"): los dos
+`<div>` de esos campos en `SearchForm.tsx` se envuelven en un contenedor
+`flex flex-col gap-3 sm:flex-row` — apilados en pantallas angostas
+(`sm:` de Tailwind, breakpoint 640px), lado a lado a partir de ahí.
+"Cantidad de empresas" queda debajo de ambos, sin cambios.
+
 ---
 
 ## 10. Colas
