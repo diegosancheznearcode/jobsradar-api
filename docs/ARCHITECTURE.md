@@ -709,7 +709,10 @@ extractor, no una investigación nueva. Solo lo trae el perfil de la empresa
 detalle de vacante quedan en `null` con `linkedinUrl` en
 `extraction.missing`. Nueva columna `linkedin_url` en `companies`
 (migración `002_company_linkedin_url.sql`), protegida por el mismo
-`COALESCE` no destructivo que `website_url`.
+`COALESCE` no destructivo que `website_url`. Del lado de `jobsradar-web`
+(`contracts@0.4.0`): nueva columna "LinkedIn" en `ResultsTable`, mismo
+patrón que la columna "Sitio" (link si hay URL, `—` si no) y misma columna
+`LinkedIn` (en español, junto al resto) en el CSV export.
 
 ---
 
