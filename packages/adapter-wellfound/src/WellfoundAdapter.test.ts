@@ -63,6 +63,25 @@ describe("WellfoundAdapter.listCompanies", () => {
     expect(vaulfi?.pitch).toBe("The Stablecoin Neobank for Emerging Markets");
     expect(result.value.hasMore).toBe(true);
   });
+
+  it('devuelve not_found si Wellfound no reconoce el rol pedido y cae a su catálogo genérico — bug real reportado por el usuario ("ayer funcionaba, hoy no" con "Mobile Developer")', async () => {
+    // El fixture tiene la clave de Apollo con "role":"backend-engineer"
+    // (confirmado en RoleListingParser.test.ts) — servirlo bajo la URL de
+    // "mobile-developer" simula exactamente lo que hace Wellfound de
+    // verdad con un slug que no reconoce: 200 OK, HTML válido, pero el rol
+    // resuelto no matchea el pedido.
+    server.use(http.get("https://wellfound.com/role/r/mobile-developer", () => HttpResponse.text(roleListingHtml)));
+
+    const adapter = testAdapter(testHttpClient());
+    const result = await adapter.listCompanies(
+      { jobTitle: "Mobile Developer", remoteOnly: true, targetCompanies: 50 },
+      1,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error.kind).toBe("not_found");
+  });
 });
 
 describe("WellfoundAdapter.getCompany", () => {

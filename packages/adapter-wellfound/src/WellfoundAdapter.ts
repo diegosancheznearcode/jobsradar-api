@@ -7,7 +7,7 @@ import type { ExtractionMetrics } from "./ExtractionMetrics.js";
 import type { HttpClient } from "./HttpClient.js";
 import { parseCompanyProfile } from "./parsers/CompanyProfileParser.js";
 import { parseRoleListing } from "./parsers/RoleListingParser.js";
-import { buildCompanyProfileUrl, buildRoleListingUrl } from "./urlBuilder.js";
+import { buildCompanyProfileUrl, buildRoleListingUrl, slugify } from "./urlBuilder.js";
 
 // Implementa JobSourcePort — ver ARCHITECTURE.md sección 6. Orquesta
 // HttpClient + parsers + circuit breaker + métricas de extracción; NO
@@ -36,7 +36,13 @@ export class WellfoundAdapter implements JobSourcePort {
       return err(htmlResult.error);
     }
 
-    const parsed = parseRoleListing(htmlResult.value);
+    // remoteOnly siempre construye /role/r/{roleSlug} (urlBuilder.ts) — ese
+    // es el único caso donde Wellfound expone un `role` en la clave de
+    // Apollo para comparar. Sin remoteOnly (poco usado hoy, la UI lo fija
+    // en true) no hay un slug de rol único que validar contra la URL por
+    // ubicación, así que se omite el chequeo en ese caso.
+    const expectedRoleSlug = criteria.remoteOnly ? slugify(criteria.jobTitle) : undefined;
+    const parsed = parseRoleListing(htmlResult.value, expectedRoleSlug);
     this.recordExtraction(parsed);
     if (!parsed.ok) return err(parsed.error);
 

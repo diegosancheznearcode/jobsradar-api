@@ -1,5 +1,6 @@
 import type { Company, JobPosting } from "@diegosancheznearcode/contracts";
 import { CompanySchema } from "@diegosancheznearcode/contracts";
+import { err } from "@jobsradar/domain";
 import type { ExtractionError, Result } from "@jobsradar/domain";
 import { extractWithCascade } from "../cascade.js";
 import type { CascadeResult } from "../cascade.js";
@@ -23,14 +24,36 @@ export interface RoleListingPage {
   pageCount: number;
   totalStartupCount: number;
   hasMore: boolean;
+  // Rol que Wellfound realmente resolvió para esta página (el argumento
+  // `role` de la clave de Apollo `seoLandingPageJobSearchResults(...)`), no
+  // necesariamente el slug pedido — ver el chequeo en parseRoleListing.
+  matchedRole?: string | undefined;
 }
 
+// expectedRoleSlug es opcional: quien llama sin él (ej. tests con
+// fixtures) se queda con el comportamiento viejo, sin este chequeo.
 export function parseRoleListing(
   html: string,
+  expectedRoleSlug?: string,
 ): Result<CascadeResult<RoleListingPage>, ExtractionError> {
-  return extractWithCascade(html, [
+  const cascadeResult = extractWithCascade(html, [
     { strategy: "hydrated_state", extract: extractFromHydratedState },
   ]);
+  if (!cascadeResult.ok) return cascadeResult;
+
+  // Bug real reportado por el usuario ("ayer funcionaba, hoy no" buscando
+  // "Mobile Developer"): Wellfound nunca devuelve 404 para un slug de rol
+  // que no reconoce — cae en silencio al catálogo genérico "Remote Tech &
+  // Startup Jobs" (miles de empresas de CUALQUIER rol, sin filtrar). La
+  // clave de Apollo sí distingue los dos casos: trae `"role":"<slug>"`
+  // cuando el rol existe en la taxonomía de Wellfound, y no trae `role` en
+  // absoluto cuando cayó al fallback. Sin este chequeo, la app aceptaba ese
+  // catálogo genérico como si fueran resultados válidos de la búsqueda.
+  if (expectedRoleSlug && cascadeResult.value.data.matchedRole !== expectedRoleSlug) {
+    return err({ kind: "not_found", retryable: false });
+  }
+
+  return cascadeResult;
 }
 
 function extractFromHydratedState(html: string): RoleListingPage | null {
@@ -45,7 +68,7 @@ function extractFromHydratedState(html: string): RoleListingPage | null {
   if (!resultsKey) return null;
   const results = talent[resultsKey];
 
-  const page = extractPageFromKey(resultsKey);
+  const { page, role } = parseResultsKeyArgs(resultsKey);
   const perPage: number = results.perPage;
   const pageCount: number = results.pageCount;
   const totalStartupCount: number = results.totalStartupCount;
@@ -62,17 +85,21 @@ function extractFromHydratedState(html: string): RoleListingPage | null {
     pageCount,
     totalStartupCount,
     hasMore: page < pageCount,
+    matchedRole: role,
   };
 }
 
-function extractPageFromKey(key: string): number {
+function parseResultsKeyArgs(key: string): { page: number; role?: string } {
   const argsMatch = key.match(/\((\{.*\})\)$/);
-  if (!argsMatch) return 1;
+  if (!argsMatch) return { page: 1 };
   try {
     const args = JSON.parse(argsMatch[1] ?? "{}");
-    return typeof args.page === "number" ? args.page : 1;
+    return {
+      page: typeof args.page === "number" ? args.page : 1,
+      role: typeof args.role === "string" ? args.role : undefined,
+    };
   } catch {
-    return 1;
+    return { page: 1 };
   }
 }
 
