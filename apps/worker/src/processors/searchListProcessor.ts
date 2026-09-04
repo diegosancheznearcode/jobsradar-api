@@ -56,18 +56,7 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
       });
     } else {
       await deps.repository.updateStatus(data.searchId, "failed");
-      // Bug real reportado por el usuario ("ayer funcionaba, hoy no" con
-      // "Mobile Developer"): Wellfound no reconoce ese slug de rol y caía
-      // en silencio a un catálogo genérico de miles de empresas de
-      // cualquier rol — WellfoundAdapter/RoleListingParser ahora detectan
-      // ese mismatch y lo devuelven como not_found en vez de aceptarlo. El
-      // mensaje genérico "listado falló: not_found" no le decía al usuario
-      // qué pasó ni qué palabra probar en su lugar.
-      const message =
-        listResult.error.kind === "not_found"
-          ? `Wellfound no reconoce "${data.criteria.jobTitle}" como un rol — probá con el nombre exacto que usa Wellfound (ej. "Backend Engineer", "Mobile Engineer", "iOS Developer").`
-          : `listado falló: ${listResult.error.kind}`;
-      await deps.events.publish(data.searchId, { type: "error", message });
+      await deps.events.publish(data.searchId, { type: "error", message: `listado falló: ${listResult.error.kind}` });
     }
     return;
   }

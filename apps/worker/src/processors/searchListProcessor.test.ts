@@ -318,32 +318,4 @@ describe("processSearchList", () => {
     expect((await repository.getSnapshot(searchId)).status).toBe("paused");
     expect(events.published[0]).toMatchObject({ type: "paused", reason: "blocked" });
   });
-
-  it('si el adapter falla con not_found, publica un mensaje claro con el jobTitle en vez de "listado falló: not_found" — bug real reportado por el usuario ("ayer funcionaba, hoy no" con "Mobile Developer", un rol que Wellfound no reconoce)', async () => {
-    const mobileCriteria: SearchCriteria = { jobTitle: "Mobile Developer", remoteOnly: true, targetCompanies: 3 };
-    const searchId = await repository.create(mobileCriteria);
-    const adapter: JobSourcePort = {
-      listCompanies: async () => ({ ok: false, error: { kind: "not_found", retryable: false } }),
-      getCompany: async () => ({ ok: false, error: { kind: "not_found", retryable: false } }),
-    };
-    const events = fakeEvents();
-
-    await processSearchList(
-      { searchId, criteria: mobileCriteria, page: 1 },
-      {
-        adapter,
-        repository,
-        events,
-        enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined),
-        enqueueNextPage: vi.fn().mockResolvedValue(undefined),
-      },
-    );
-
-    expect((await repository.getSnapshot(searchId)).status).toBe("failed");
-    expect(events.published[0]).toMatchObject({
-      type: "error",
-      message: expect.stringContaining('"Mobile Developer"'),
-    });
-    expect(events.published[0]).not.toMatchObject({ message: "listado falló: not_found" });
-  });
 });

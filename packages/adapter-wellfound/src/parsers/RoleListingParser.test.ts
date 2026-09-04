@@ -66,23 +66,4 @@ describe("parseRoleListing", () => {
       expect(result.error.kind).toBe("parse_failed");
     }
   });
-
-  it("expone el rol que Wellfound realmente resolvió (matchedRole)", () => {
-    const result = parseRoleListing(roleListingHtml);
-    if (!result.ok) throw new Error("unreachable");
-    expect(result.value.data.matchedRole).toBe("backend-engineer");
-  });
-
-  it("con expectedRoleSlug que matchea, se comporta igual que sin pasarlo", () => {
-    const result = parseRoleListing(roleListingHtml, "backend-engineer");
-    expect(result.ok).toBe(true);
-  });
-
-  it('not_found si expectedRoleSlug no matchea el rol resuelto — bug real reportado por el usuario ("ayer funcionaba, hoy no"): Wellfound cae en silencio a su catálogo genérico cuando no reconoce el slug', () => {
-    const result = parseRoleListing(roleListingHtml, "mobile-developer");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.kind).toBe("not_found");
-    }
-  });
 });

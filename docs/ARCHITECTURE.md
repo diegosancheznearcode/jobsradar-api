@@ -906,49 +906,35 @@ lo que ofrezca la página 1 de ese rol, sin importar qué `target_companies`
 se pida) — sigue pendiente decidir si vale la pena reversar el GraphQL de
 Wellfound o migrar a Playwright para levantar ese límite de verdad.
 
-**Wellfound no reconoce cualquier `jobTitle` como un rol — causa real de
-"ayer funcionaba, hoy no"**. El usuario preguntó por qué "Mobile Developer"
-fallaba si "Backend Engineer" (el día anterior) funcionaba bien. Investigado
-en vivo: Wellfound nunca devuelve 404 para un slug de rol que no reconoce
+**Wellfound no reconoce cualquier `jobTitle` como un rol — investigado y
+luego revertido, mismo día (2026-09-04)**. Se había detectado que Wellfound
+nunca devuelve 404 para un slug de rol que no reconoce
 (`slugify("Mobile Developer")` → `mobile-developer`) — cae en silencio al
 catálogo genérico `/role/r/` sin filtro (`"Remote Tech & Startup Jobs"`,
 4120 startups de CUALQUIER rol), mientras que un slug real como
-`backend-engineer` o `mobile-engineer` (el nombre correcto en la taxonomía
-de Wellfound para "mobile developer") sí devuelve una clave de Apollo con
-`"role":"<slug>"` y resultados genuinamente filtrados. Antes de este fix,
-la app aceptaba el catálogo genérico como si fueran resultados válidos —
-por eso "ayer" (con un rol que sí existe) funcionaba y "hoy" (con uno que
-no) traía basura sin ningún aviso.
+`backend-engineer` o `mobile-engineer` sí devuelve una clave de Apollo con
+`"role":"<slug>"` y resultados genuinamente filtrados. Se implementó
+detección (`RoleListingPage.matchedRole`, `parseRoleListing(html,
+expectedRoleSlug?)` devolviendo `not_found` si no matchea) para que la
+búsqueda fallara con un mensaje claro en vez de aceptar el catálogo
+genérico.
 
-Se le preguntó al usuario cómo resolverlo: detectar y avisar con
-sugerencias, avisar sin sugerencias, o investigar primero el alcance real
-del problema — eligió detectar y avisar con sugerencias. Cambios:
-
-- `RoleListingPage` (`RoleListingParser.ts`) gana `matchedRole` — el
-  argumento `role` real de la clave de Apollo
-  `seoLandingPageJobSearchResults(...)`, no necesariamente el slug pedido.
-- `parseRoleListing(html, expectedRoleSlug?)` gana un segundo parámetro
-  opcional (compatible con los tests/fixtures existentes, que no lo pasan):
-  si se pasa y no matchea `matchedRole`, devuelve `err({kind: "not_found",
-  retryable: false})` en vez de aceptar el fallback genérico.
-- `WellfoundAdapter.listCompanies` pasa `slugify(criteria.jobTitle)` como
-  `expectedRoleSlug` (solo cuando `remoteOnly` es `true`, el único caso con
-  un slug de rol único para comparar — `buildRoleListingUrl`, sección 3).
-- `searchListProcessor.ts`: un `not_found` en el listado ahora publica un
-  mensaje claro con el `jobTitle` tal cual lo escribió el usuario
-  (`Wellfound no reconoce "{jobTitle}" como un rol — probá con...`) en vez
-  del genérico `listado falló: not_found`.
-- `StatusPanel.tsx` (`jobsradar-web`) gana la prop `errorMessage` y lo
-  renderiza cuando `status` es `"error"` — `useSearch` ya trackeaba
-  `errorMessage` desde el evento SSE `error` (sección 7.1) pero **nada lo
-  mostraba en pantalla**; el usuario solo veía el badge genérico "Error"
-  sin ningún detalle, sea cual sea la causa real.
-
-No hay una lista curada de sugerencias "roles parecidos" — el mensaje da
-ejemplos ilustrativos de nombres reales de Wellfound (Backend Engineer,
-Mobile Engineer, iOS Developer), no una búsqueda difusa contra la taxonomía
-completa de Wellfound (eso requeriría investigar si existe un endpoint de
-autocompletado de roles; queda pendiente si se necesita más adelante).
+**Revertido por pedido explícito del usuario** el mismo día: quiere que
+las búsquedas vuelvan a comportarse como el miércoles 2026-09-02 (última
+sesión de trabajo real antes de esta fase, sin commits entre el domingo
+2026-08-31 y esa fecha) — es decir, que una búsqueda **siempre** traiga
+algo, aunque el `jobTitle` no matchee un rol exacto de la taxonomía de
+Wellfound, en vez de fallar con un error. Se hizo `git revert` del commit
+`bf6c7ba` completo (`RoleListingParser.ts`, `WellfoundAdapter.ts`,
+`searchListProcessor.ts` y sus tests) — la detección de rol no reconocido
+ya no existe en el código, no quedó deshabilitada ni oculta detrás de un
+flag. El corte de paginación desperdiciada (`newlyFoundThisPage`, nota
+anterior) SÍ se mantiene — es independiente y sigue siendo válido incluso
+contra el catálogo genérico de fallback, que tampoco pagina de verdad.
+`StatusPanel.tsx` (`jobsradar-web`) conserva la capacidad de mostrar
+`errorMessage` cuando `status` es `"error"` — es una mejora general de la
+UI, no depende de este fix revertido, y sigue siendo útil para errores
+genuinos (`blocked`/`rate_limited`/`parse_failed`).
 
 ---
 
