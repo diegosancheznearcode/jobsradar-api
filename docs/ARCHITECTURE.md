@@ -781,6 +781,29 @@ formulario de arriba y borrar el campo a mano. Se agrega
 dentro del mismo `<p>` ámbar — misma acción que ya hacía el botón
 "Limpiar", pero sin resetear Puesto/Cantidad ni la búsqueda en curso.
 
+**Roles remotos sin ciudad propia matchean cualquier ubicación** (mismo día,
+bug real reportado por el usuario comparando contra Wellfound.com: "en la
+búsqueda real sí me sale, pero en la página no"). Investigado: la pantalla
+que compartió el usuario es la búsqueda logueada de jobs de Wellfound
+(`/jobs`, con pestañas Saved/Hidden, alertas), una fuente de datos distinta
+a las páginas SEO `/role/r/{rol}` que scrapea el backend — no son
+comparables 1:1. Pero el ejemplo señalaba una diferencia real de
+comportamiento: un rol de PeakTew mostraba "Remote only • Everywhere" como
+ubicación y aun así aparecía en una búsqueda por "Los Angeles" en el sitio
+real. Wellfound trata un rol remoto sin ciudad restringida como elegible
+desde cualquier lado; nuestro filtro (`ResultsTable.tsx`) comparaba texto
+literal contra `job.location`, así que un job con `location: null` nunca
+matcheaba una ciudad puntual.
+
+Se agrega `hasLocationlessRemoteRole(company)`: si algún job de la empresa
+es `isRemote: true` y no tiene `location`, la empresa matchea cualquier
+`locationFilter`, sin importar el texto buscado — replica el comportamiento
+real de Wellfound en vez del match literal anterior. Decisión explícita del
+usuario (se le preguntó entre dejarlo como estaba vs. este cambio, y eligió
+replicar el comportamiento de Wellfound), sabiendo que puede traer más
+resultados de los esperados para una ciudad puntual — un trade-off
+aceptado, no un efecto secundario no buscado.
+
 ---
 
 ## 10. Colas
