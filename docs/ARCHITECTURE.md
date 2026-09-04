@@ -983,6 +983,21 @@ y "Quitar filtro" en `ResultsTable.tsx` NO se sacan — siguen siendo útiles
 para cuando el usuario escribe un filtro DESPUÉS de ver los resultados de
 la búsqueda actual (ese caso nunca se resetea solo, es intencional).
 
+**`useSearch.start()` no manejaba un fallo de red en el POST inicial —
+encontrado corriendo CI, no reportado por el usuario**. `App.tsx` llama a
+`start(criteria)` con `void` (fire-and-forget) — si `searchPort.start`
+rechazaba (backend caído, CORS, DNS), la promesa quedaba sin manejar: en
+producción la UI se trababa en `"Iniciando…"` para siempre sin ningún
+mensaje; en CI, ese unhandled rejection tumbaba todo el proceso de tests
+(`vitest`) aunque los 53 tests individuales hubieran pasado — así se
+enganchó, corriendo la suite de la Fase 12 en GitHub Actions sin el
+contenedor de `jobsradar-api` disponible. Se agrega `try/catch` alrededor
+del `await searchPort.start(criteria)`: si falla, pasa a `status: "error"`
+con el mensaje real (mismo mecanismo que ya usa el evento SSE `error`,
+sección 7.1) en vez de dejar la promesa colgada. Verificado con
+`docker compose stop api` + corriendo los tests localmente sin backend
+(reproduce exactamente la condición de CI) antes de confirmar el fix.
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
