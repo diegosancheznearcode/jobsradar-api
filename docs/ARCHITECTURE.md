@@ -969,6 +969,20 @@ Zod en inglés (`"Number must be less than or equal to 50"`) —
 `targetCompanies`/`jobTitle`, los dos campos que puede fallar en este
 formulario (no es un mapeo genérico de todos los códigos de Zod).
 
+**El filtro de ubicación vuelve a resetearse al arrancar una búsqueda
+nueva — segundo revert sobre lo mismo, mismo día (2026-09-04)**. Esta fase
+ya había pasado por esto dos veces: primero se reseteaba (Fase 11), el
+usuario pidió que dejara de resetearse ("no borres los filtros..."), y
+ahora pide volver atrás porque el aviso ámbar + botón "Quitar filtro" (las
+mitigaciones agregadas mientras tanto) no fueron suficiente — un filtro
+"Los Angeles" olvidado de una búsqueda anterior seguía tapando en silencio
+5/5 empresas recién encontradas ("Mira solo 5/5 empresas... no debería
+traerme 5 empresas en la visual"). `App.tsx`/`handleSubmit` vuelve a
+llamar `setLocationFilter("")` antes de `start(criteria)`. El aviso ámbar
+y "Quitar filtro" en `ResultsTable.tsx` NO se sacan — siguen siendo útiles
+para cuando el usuario escribe un filtro DESPUÉS de ver los resultados de
+la búsqueda actual (ese caso nunca se resetea solo, es intencional).
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
