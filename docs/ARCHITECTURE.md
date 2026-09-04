@@ -751,6 +751,26 @@ campos puesto y ubicacion de manera horizontal y no vertical"): los dos
 (`sm:` de Tailwind, breakpoint 640px), lado a lado a partir de ahí.
 "Cantidad de empresas" queda debajo de ambos, sin cambios.
 
+**Confusión real tras el cambio anterior** ("le di 5 y aparecio 3, adicional
+sale esto 50/50 empresas — página 6 pero no veo un tema de paginacion"): no
+es un bug de conteo — se verificó en vivo (`targetCompanies: 5` sin filtro
+de ubicación) que `search-list` sigue devolviendo exactamente 5/5. La causa
+es consecuencia directa del primer ajuste de esta misma fase: como
+`locationFilter` ya no se borra entre búsquedas, un valor de una búsqueda
+anterior ("Los Angeles") reducía en silencio 5 empresas encontradas a 3
+visibles. El indicador de Fase 11 ("Mostrando X de Y — filtrado por
+ubicación") ya existía pero pasaba desapercibido como texto gris plano; se
+lo redibuja como aviso ámbar (`ResultsTable.tsx`) y se agrega el valor del
+filtro entre comillas al mensaje, para que sea imposible confundirlo con un
+bug de la búsqueda.
+
+Por separado, "página {N}" en `StatusPanel.tsx` es el número de página del
+listado de Wellfound que el scraper está leyendo (`search-list`, sección
+10) — nunca fue paginación de la tabla de resultados (esa se muestra
+siempre completa, sin paginar). El texto se aclara a "revisando página N de
+Wellfound" para dejar explícito que es un detalle interno del scraping, no
+un control de navegación ausente en la UI.
+
 ---
 
 ## 10. Colas
