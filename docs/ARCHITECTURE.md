@@ -936,6 +936,39 @@ contra el catálogo genérico de fallback, que tampoco pagina de verdad.
 UI, no depende de este fix revertido, y sigue siendo útil para errores
 genuinos (`blocked`/`rate_limited`/`parse_failed`).
 
+**"Cantidad de empresas" no respetaba el número escrito — causa real
+encontrada** (bug real reportado por el usuario: "sigue saliendo 50/50...
+necesito que me retorne el número que yo coloqué"). El campo viene
+precargado con "50" — hacer clic y escribir sin borrar antes AGREGA el
+dígito al final en vez de reemplazar ("5" sobre "50" da "505"), superando
+el máximo. Reproducido con un test de `SearchForm` antes de tocar código
+(`user.type` sin `clear()` primero → `targetInput.value` termina en
+`"505"`). Dos causas compuestas, ambas arregladas:
+
+1. El input no seleccionaba su contenido al enfocarse — se agrega
+   `onFocus={(e) => e.target.select()}`, así escribir siempre reemplaza el
+   valor completo, como espera cualquiera al ver un campo numérico ya
+   lleno.
+2. Peor aún: con un valor fuera de rango, el input tenía `min={1}
+   max={50}` nativos de HTML — el navegador bloquea el evento `submit` del
+   `<form>` por su propia validación de restricciones ANTES de que React
+   llegue a ejecutar `handleSubmit`. Confirmado con un test aislado
+   (`SearchCriteriaSchema.safeParse` sí detecta `999` como inválido con
+   `path: ["targetCompanies"]`) contra el comportamiento real del
+   formulario (con `min`/`max` puestos, ni `onSubmit` ni el mensaje de
+   error en pantalla se disparaban — el navegador se quedaba con su propio
+   tooltip nativo, fácil de pasar por alto, y la pantalla seguía mostrando
+   el resultado de la búsqueda anterior sin ninguna explicación). Se
+   sacaron `min`/`max` del input — Zod (`SearchCriteriaSchema`) sigue
+   validando el rango 1-50 igual, ahora es el único validador y el mensaje
+   de error sí llega a mostrarse.
+
+De paso, el mensaje de error del formulario deja de ser el texto crudo de
+Zod en inglés (`"Number must be less than or equal to 50"`) — 
+`describeValidationError()` en `SearchForm.tsx` lo traduce para
+`targetCompanies`/`jobTitle`, los dos campos que puede fallar en este
+formulario (no es un mapeo genérico de todos los códigos de Zod).
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
