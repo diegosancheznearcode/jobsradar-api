@@ -771,6 +771,16 @@ siempre completa, sin paginar). El texto se aclara a "revisando página N de
 Wellfound" para dejar explícito que es un detalle interno del scraping, no
 un control de navegación ausente en la UI.
 
+**Botón "Quitar filtro" en el aviso ámbar** (mismo día, la misma confusión
+se repitió una tercera vez: "ahora no trae nada" con `locationFilter="LOS
+ANGELES"` y 0 de las empresas encontradas con un rol ahí). El aviso de
+Fase 12 ya explicaba la causa, pero el usuario tenía que volver al
+formulario de arriba y borrar el campo a mano. Se agrega
+`onClearLocationFilter` a `ResultsTableProps` (prop obligatoria, la pasa
+`App.tsx` como `() => setLocationFilter("")`) y un botón "Quitar filtro"
+dentro del mismo `<p>` ámbar — misma acción que ya hacía el botón
+"Limpiar", pero sin resetear Puesto/Cantidad ni la búsqueda en curso.
+
 ---
 
 ## 10. Colas
