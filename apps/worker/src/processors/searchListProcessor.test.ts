@@ -195,6 +195,35 @@ describe("processSearchList", () => {
     expect(events.published).toContainEqual({ type: "done", total: 1, partial: 1 });
   });
 
+  it("no pide la página siguiente si la página actual no aportó ninguna empresa nueva, aunque hasMore siga true", async () => {
+    // Bug real reportado por el usuario ("le di target=10, se quedó en 5"):
+    // /role/r/{rol}?page=N no pagina de verdad en Wellfound — todas las
+    // "páginas siguientes" devuelven el mismo listado que la página 1
+    // (confirmado en vivo). Sin este corte, una búsqueda sin target
+    // alcanzable en esa única página real pedía hasta maxPages copias
+    // idénticas, desperdiciando tráfico sin ganar ni una empresa.
+    const searchId = await repository.create(criteria); // target=3
+    await repository.attachCompany(searchId, company("a"), 1);
+
+    const adapter = fakeAdapter({ 2: { companies: [company("a")], hasMore: true } });
+    const enqueueNextPage = vi.fn().mockResolvedValue(undefined);
+    const events = fakeEvents();
+
+    await processSearchList(
+      { searchId, criteria, page: 2 },
+      {
+        adapter,
+        repository,
+        events,
+        enqueueCompanyDetail: vi.fn().mockResolvedValue(undefined),
+        enqueueNextPage,
+      },
+    );
+
+    expect(enqueueNextPage).not.toHaveBeenCalled();
+    expect((await repository.getSnapshot(searchId)).status).toBe("done");
+  });
+
   it("el rank de una segunda página sigue desde donde quedó la primera", async () => {
     const searchId = await repository.create(criteria);
     await repository.attachCompany(searchId, company("a"), 1);

@@ -80,6 +80,7 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
   // enriquecido. `search_results` ya es idempotente por (searchId, slug)
   // a nivel SQL — esto evita el trabajo/ruido de más antes de llegar ahí.
   const alreadyFound = new Set(before.companies.map((c) => c.slug));
+  let newlyFoundThisPage = 0;
 
   for (const company of companies) {
     if (alreadyFound.has(company.slug)) continue;
@@ -93,6 +94,7 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
 
     alreadyFound.add(company.slug);
     rank += 1;
+    newlyFoundThisPage += 1;
     await deps.repository.attachCompany(data.searchId, company, rank);
     await deps.events.publish(data.searchId, { type: "company.found", company, rank });
     await deps.enqueueCompanyDetail({ searchId: data.searchId, slug: company.slug });
@@ -108,12 +110,26 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
 
   const maxPages = deps.maxPages ?? DEFAULT_MAX_PAGES;
 
-  if (hasMore && after.progress.found < after.progress.target) {
+  // Bug real reportado por el usuario ("le di target=10, se quedó en 5"):
+  // `/role/r/{rol}?page=N` no pagina de verdad — Wellfound solo renderiza
+  // la página 1 por SSR (confirmado fetcheando ?page=1 y ?page=2 reales:
+  // devuelven las mismas 20 empresas, mismo orden; la paginación real de su
+  // UI pide el resto vía GraphQL client-side, que este scraper no ejecuta,
+  // AD-05). Sin este chequeo, una búsqueda sin target alcanzable en la
+  // página 1 pedía hasta `maxPages` copias idénticas de la misma página —
+  // tráfico desperdiciado contra Wellfound sin ganar ni una empresa nueva.
+  // Si una página no aportó ninguna empresa nueva, no tiene sentido seguir
+  // pidiendo más — cierra acá en vez de agotar el resto del tope.
+  if (hasMore && after.progress.found < after.progress.target && newlyFoundThisPage > 0) {
     if (data.page < maxPages) {
       await deps.enqueueNextPage({ searchId: data.searchId, criteria: data.criteria, page: data.page + 1 });
       return;
     }
     log(`[search-list] searchId=${data.searchId} llegó al tope de ${maxPages} páginas, cierra parcial`);
+  } else if (hasMore && after.progress.found < after.progress.target) {
+    log(
+      `[search-list] searchId=${data.searchId} page=${data.page} no sumó empresas nuevas — corta antes de pedir más páginas repetidas`,
+    );
   }
 
   // Termina la fase de listado. Los company-detail/job-detail ya encolados

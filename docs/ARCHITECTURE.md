@@ -879,6 +879,33 @@ de más antes de llegar ahí. El frontend igual quedó defensivo
 `company.found` como en `company.updated`) — no asume que el server nunca
 va a mandar un `found` repetido.
 
+**`/role/r/{rol}?page=N` no pagina de verdad — hallazgo real, Fase 12**
+(bug real reportado por el usuario: "le di target=10, se quedó en 5").
+Investigado fetcheando `?page=1` y `?page=2` reales para el mismo rol y
+corriendo `RoleListingParser` sobre ambas respuestas: devuelven exactamente
+las mismas 20 empresas, mismo orden — la clave de Apollo embebida en el
+HTML dice literalmente `"page":1` en las dos. Wellfound solo renderiza la
+página 1 por SSR; su UI real pide el resto vía POST a
+`https://wellfound.com/graphql` desde JavaScript client-side después de
+montar, algo que este scraper (fetch + cheerio, sin navegador, AD-05) no
+ejecuta. Antes de este fix, una búsqueda sin target alcanzable dentro de
+esa única página real terminaba pidiendo hasta `maxPages` (10) copias
+idénticas de la misma página — 0 empresas nuevas por request, solo tráfico
+desperdiciado y riesgo de bloqueo/rate-limit contra Wellfound sin ganar
+nada a cambio.
+
+Se le preguntó al usuario cómo seguir: reversar la API GraphQL real de
+Wellfound, migrar a un navegador headless (Playwright, revirtiendo AD-05),
+o un corte defensivo inmediato — eligió el corte inmediato. `search-list`
+ahora cuenta `newlyFoundThisPage` (empresas nuevas realmente agregadas en
+esta página, no duplicados de `alreadyFound`); si una página no aportó
+ninguna, corta ahí y cierra la búsqueda como `done` con lo que haya
+encontrado, en vez de seguir pidiendo páginas repetidas hasta agotar
+`maxPages`. **No soluciona el límite real** (una búsqueda sigue tapada en
+lo que ofrezca la página 1 de ese rol, sin importar qué `target_companies`
+se pida) — sigue pendiente decidir si vale la pena reversar el GraphQL de
+Wellfound o migrar a Playwright para levantar ese límite de verdad.
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
