@@ -998,6 +998,13 @@ sección 7.1) en vez de dejar la promesa colgada. Verificado con
 `docker compose stop api` + corriendo los tests localmente sin backend
 (reproduce exactamente la condición de CI) antes de confirmar el fix.
 
+**Columna "Pitch" renombrada a "Descripción"** (pedido explícito del
+usuario): el nombre en inglés no dejaba claro a qué se refería. Solo
+cambia la etiqueta visible — el campo interno sigue siendo `pitch` en
+`Company`/`SearchCriteria` (viene de `highConcept` en el listado de
+Wellfound, sección 6) tanto en la tabla (`ResultsTable.tsx`) como en el
+CSV export (`COLUMN_LABELS.pitch`, `apps/api/src/csv.ts`).
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)

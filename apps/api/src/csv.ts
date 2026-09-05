@@ -26,7 +26,7 @@ const COLUMNS = [
 const COLUMN_LABELS: Record<(typeof COLUMNS)[number], string> = {
   slug: "Identificador",
   name: "Empresa",
-  pitch: "Pitch",
+  pitch: "Descripción",
   size: "Tamaño",
   market: "Mercado",
   websiteUrl: "Sitio web",
