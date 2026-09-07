@@ -136,6 +136,106 @@ describe("processCompanyDetail", () => {
     expect(events.published[0]).toMatchObject({ type: "paused", reason: "blocked" });
   });
 
+  it("si Wellfound no trae linkedinUrl pero hay websiteUrl, consulta el fallback y lo persiste — pedido explícito del usuario", async () => {
+    const searchId = await repository.create(criteria);
+    await repository.attachCompany(searchId, baseCompany(), 1);
+
+    const sinLinkedin: Company = {
+      ...enrichedCompany(),
+      linkedinUrl: null,
+      extraction: { ...enrichedCompany().extraction, missing: ["linkedinUrl"] },
+    };
+    const adapter: JobSourcePort = {
+      listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+      getCompany: async () => ({ ok: true, value: sinLinkedin }),
+    };
+    const findLinkedinUrl = vi.fn().mockResolvedValue("https://www.linkedin.com/company/molten-inc");
+
+    await processCompanyDetail(
+      { searchId, slug: "vaulfi-1" },
+      { adapter, repository, events: fakeEvents(), linkedinLookup: { findLinkedinUrl } },
+    );
+
+    expect(findLinkedinUrl).toHaveBeenCalledWith("https://vaulfi.com");
+    const found = await repository.findCompanyBySlug("vaulfi-1", 24);
+    expect(found?.linkedinUrl).toBe("https://www.linkedin.com/company/molten-inc");
+    expect(found?.extraction.missing).not.toContain("linkedinUrl");
+  });
+
+  it("no consulta el fallback si Wellfound ya trajo linkedinUrl", async () => {
+    const searchId = await repository.create(criteria);
+    await repository.attachCompany(searchId, baseCompany(), 1);
+
+    const adapter: JobSourcePort = {
+      listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+      getCompany: async () => ({ ok: true, value: enrichedCompany() }),
+    };
+    const findLinkedinUrl = vi.fn();
+
+    await processCompanyDetail(
+      { searchId, slug: "vaulfi-1" },
+      { adapter, repository, events: fakeEvents(), linkedinLookup: { findLinkedinUrl } },
+    );
+
+    expect(findLinkedinUrl).not.toHaveBeenCalled();
+  });
+
+  it("no consulta el fallback si tampoco hay websiteUrl (no hay qué mandarle al servicio)", async () => {
+    const searchId = await repository.create(criteria);
+    await repository.attachCompany(searchId, baseCompany(), 1);
+
+    const sinNada: Company = { ...baseCompany(), founders: [{ name: "X", role: null, profileUrl: null, linkedinUrl: null, source: "company_profile" }] };
+    const adapter: JobSourcePort = {
+      listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+      getCompany: async () => ({ ok: true, value: sinNada }),
+    };
+    const findLinkedinUrl = vi.fn();
+
+    await processCompanyDetail(
+      { searchId, slug: "vaulfi-1" },
+      { adapter, repository, events: fakeEvents(), linkedinLookup: { findLinkedinUrl } },
+    );
+
+    expect(findLinkedinUrl).not.toHaveBeenCalled();
+  });
+
+  it("si el fallback no encuentra nada (null), sigue guardando la empresa sin tirar", async () => {
+    const searchId = await repository.create(criteria);
+    await repository.attachCompany(searchId, baseCompany(), 1);
+
+    const sinLinkedin: Company = { ...enrichedCompany(), linkedinUrl: null };
+    const adapter: JobSourcePort = {
+      listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+      getCompany: async () => ({ ok: true, value: sinLinkedin }),
+    };
+    const findLinkedinUrl = vi.fn().mockResolvedValue(null);
+
+    await expect(
+      processCompanyDetail(
+        { searchId, slug: "vaulfi-1" },
+        { adapter, repository, events: fakeEvents(), linkedinLookup: { findLinkedinUrl } },
+      ),
+    ).resolves.toBeUndefined();
+
+    const found = await repository.findCompanyBySlug("vaulfi-1", 24);
+    expect(found?.linkedinUrl).toBeNull();
+  });
+
+  it("sin linkedinLookup en deps (no configurado), simplemente no intenta el fallback", async () => {
+    const searchId = await repository.create(criteria);
+    await repository.attachCompany(searchId, baseCompany(), 1);
+
+    const sinLinkedin: Company = { ...enrichedCompany(), linkedinUrl: null };
+    const adapter: JobSourcePort = {
+      listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+      getCompany: async () => ({ ok: true, value: sinLinkedin }),
+    };
+
+    await expect(
+      processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events: fakeEvents() }),
+    ).resolves.toBeUndefined();
+  });
+
   it("not_found publica company.failed", async () => {
     const searchId = await repository.create(criteria);
     await repository.attachCompany(searchId, baseCompany(), 1);

@@ -60,6 +60,11 @@ services:
       DATABASE_URL: postgres://jobsradar:jobsradar@postgres:5432/jobsradar
       REDIS_URL: redis://redis:6379
       WELLFOUND_STORAGE_STATE_PATH: /repo/storageState.json
+      # Fallback de LinkedIn (pedido explícito del usuario) — credenciales
+      # reales solo en .env local (gitignorado), nunca acá. Sin ellas el
+      # worker sigue funcionando, solo se salta este fallback opcional.
+      TALENTRADAR_API_USER: ${TALENTRADAR_API_USER:-}
+      TALENTRADAR_API_PASSWORD: ${TALENTRADAR_API_PASSWORD:-}
     volumes:
       - ./storageState.json:/repo/storageState.json:ro
     depends_on:

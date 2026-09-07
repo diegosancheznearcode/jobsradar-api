@@ -9,6 +9,7 @@ import {
 } from "@jobsradar/adapter-wellfound";
 import { RedisEventPublisher } from "@jobsradar/events-redis";
 import { createConnection, PostgresSearchRepository, runMigrations } from "@jobsradar/repository-postgres";
+import { LinkedinLookupClient } from "./linkedinLookupClient.js";
 import { processCompanyDetail } from "./processors/companyDetailProcessor.js";
 import { processJobDetail } from "./processors/jobDetailProcessor.js";
 import { processSearchList } from "./processors/searchListProcessor.js";
@@ -22,6 +23,8 @@ import type { SearchListJobData } from "./processors/searchListProcessor.js";
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://jobsradar:jobsradar@localhost:5432/jobsradar";
 const STORAGE_STATE_PATH = process.env.WELLFOUND_STORAGE_STATE_PATH;
+const TALENTRADAR_API_USER = process.env.TALENTRADAR_API_USER;
+const TALENTRADAR_API_PASSWORD = process.env.TALENTRADAR_API_PASSWORD;
 
 const connection = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 const sql = createConnection(DATABASE_URL);
@@ -35,6 +38,20 @@ const adapter = new WellfoundAdapter(sessionHttp, breaker, extractionMetrics);
 // Conexión de publicación aparte de `connection` (BullMQ) — pub/sub y
 // colas no deberían compartir la misma conexión ioredis.
 const events = new RedisEventPublisher(new Redis(REDIS_URL));
+
+// Fallback opcional de LinkedIn (pedido explícito del usuario) — sin estas
+// dos variables, company-detail sigue enriqueciendo normalmente, solo que
+// linkedinUrl se queda en null cuando Wellfound no lo trae, como pasaba
+// antes de este fallback.
+const linkedinLookup =
+  TALENTRADAR_API_USER && TALENTRADAR_API_PASSWORD
+    ? new LinkedinLookupClient({ usuario: TALENTRADAR_API_USER, password: TALENTRADAR_API_PASSWORD })
+    : undefined;
+if (!linkedinLookup) {
+  console.warn(
+    "[linkedin-lookup] TALENTRADAR_API_USER/TALENTRADAR_API_PASSWORD no configuradas — sin fallback de LinkedIn",
+  );
+}
 
 // job-detail no pasa por JobSourcePort (sección 9: no lo declara) — usa su
 // propio HttpClient sin sesión, tal como confirmó Fase 0.
@@ -64,7 +81,7 @@ new Worker<SearchListJobData>(
 
 new Worker(
   "company-detail",
-  (job) => processCompanyDetail(job.data, { adapter, repository, events }),
+  (job) => processCompanyDetail(job.data, { adapter, repository, events, linkedinLookup }),
   { connection, concurrency: 2 },
 );
 

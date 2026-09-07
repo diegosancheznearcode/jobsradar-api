@@ -9,10 +9,20 @@ import type { CompanyDetailJobData } from "./searchListProcessor.js";
 
 const CACHE_MAX_AGE_HOURS = 24 * 7; // una semana — sin TTL real de cf_clearance medido (Fase 4), valor conservador
 
+// Pedido explícito del usuario: cuando Wellfound no trae linkedinUrl de una
+// empresa (CompanyProfileParser, Fase 0: /company/{slug}/people no lo
+// expone), se completa con el servicio propio del usuario en
+// linkedinLookupClient.ts. Es opcional en deps — sin él, o si no encuentra
+// nada, la empresa se guarda igual sin linkedinUrl, como pasaba antes.
+export interface LinkedinLookupPort {
+  findLinkedinUrl(websiteUrl: string): Promise<string | null>;
+}
+
 export interface CompanyDetailDeps {
   adapter: JobSourcePort;
   repository: SearchRepositoryPort;
   events: EventPublisherPort;
+  linkedinLookup?: LinkedinLookupPort | undefined;
   log?: (message: string) => void;
 }
 
@@ -48,7 +58,22 @@ export async function processCompanyDetail(data: CompanyDetailJobData, deps: Com
     return;
   }
 
-  await deps.repository.attachCompany(data.searchId, result.value, 0);
+  let company = result.value;
+  if (!company.linkedinUrl && company.websiteUrl && deps.linkedinLookup) {
+    const linkedinUrl = await deps.linkedinLookup.findLinkedinUrl(company.websiteUrl);
+    if (linkedinUrl) {
+      company = {
+        ...company,
+        linkedinUrl,
+        extraction: {
+          ...company.extraction,
+          missing: company.extraction.missing.filter((field) => field !== "linkedinUrl"),
+        },
+      };
+    }
+  }
+
+  await deps.repository.attachCompany(data.searchId, company, 0);
 
   // Sin esto, la UI nunca se entera de que esta empresa ya tiene
   // founders/market/website: se queda para siempre con los datos parciales

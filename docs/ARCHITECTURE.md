@@ -1005,6 +1005,39 @@ cambia la etiqueta visible — el campo interno sigue siendo `pitch` en
 Wellfound, sección 6) tanto en la tabla (`ResultsTable.tsx`) como en el
 CSV export (`COLUMN_LABELS.pitch`, `apps/api/src/csv.ts`).
 
+**Fallback de LinkedIn vía servicio externo del usuario** (pedido explícito
+del usuario): Fase 0 ya había confirmado que `/company/{slug}/people` no
+expone el LinkedIn de la empresa cuando Wellfound no lo trae en el perfil.
+Se agrega un fallback opcional: cuando `getCompany()` devuelve
+`linkedinUrl: null` pero sí hay `websiteUrl`, `processCompanyDetail`
+consulta `https://talentradar-api-tnxrhfijdq-pv.a.run.app/api/
+empresa-linkedin` (servicio propio del usuario, no de Wellfound) con
+`{"url_empresa": <websiteUrl>}` y usa el `linkedin_url` que responda.
+
+- `apps/worker/src/linkedinLookupClient.ts` — cliente nuevo. El servicio
+  pide un token (`POST /api/auth/token` con `usuario`/`password`) que
+  vence a la hora (`expires_in`); el cliente lo cachea en memoria y lo
+  renueva solo un minuto antes de vencer, no en cada consulta.
+- `processCompanyDetail` (`companyDetailProcessor.ts`) gana
+  `linkedinLookup?: LinkedinLookupPort` en `deps` (opcional): sin
+  `websiteUrl`, o si Wellfound ya trajo `linkedinUrl`, o si no está
+  configurado, no se consulta. Si el fallback encuentra algo, también saca
+  `"linkedinUrl"` de `extraction.missing`.
+- **Degrada sin fallar** (sección 1.3): un error de red, un HTTP 4xx/5xx,
+  o un `linkedin_url` que no sea una URL válida hacen que el cliente
+  devuelva `null` — la empresa se guarda igual, solo sin ese dato, como
+  pasaba antes de este fallback. Nunca tira la excepción hacia arriba.
+- Credenciales (`TALENTRADAR_API_USER`/`TALENTRADAR_API_PASSWORD`) viven
+  en `.env` local (gitignorado) y se pasan a `docker-compose.yml` vía
+  `${VAR}` — nunca hardcodeadas ni commiteadas. Sin ellas configuradas, el
+  worker arranca igual (loguea un aviso) y simplemente se salta el
+  fallback.
+- El valor que devuelve el servicio se usa tal cual, sin normalizar — se
+  observó al menos un caso real con parámetros de tracking mal escapados
+  en la URL (`?trk=...`) que igual pasa la validación `z.string().url()`
+  de `CompanySchema`; no se intenta "limpiar" la URL, es responsabilidad
+  del servicio externo.
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)
