@@ -294,6 +294,46 @@ describe("processSearchList", () => {
     expect(events.published).toContainEqual({ type: "progress", found: 1, target: 3, page: 1 });
   });
 
+  // Pedido explícito del usuario ("el spinner no se puede dejar hasta que
+  // cargue todo") — ver el comentario en SearchRepositoryPort.
+  it('publica "enrichment.done" si el enriquecimiento ya alcanzó a todo lo encolado para cuando el listado termina', async () => {
+    const searchId = await repository.create(criteria);
+    const adapter = fakeAdapter({ 1: { companies: [company("a")], hasMore: false } });
+    const events = fakeEvents();
+    // Simula company-detail terminando antes de que processSearchList
+    // llegue a su propio chequeo final — tiene que cubrir este caso
+    // también del lado de search-list, no solo del lado de company-detail
+    // (que acá ni corre: enqueueCompanyDetail es un fake).
+    const enqueueCompanyDetail = vi.fn(async ({ searchId: sid }: { searchId: string; slug: string }) => {
+      await repository.recordCompanyDetailCompleted(sid);
+    });
+
+    await processSearchList(
+      { searchId, criteria, page: 1 },
+      { adapter, repository, events, enqueueCompanyDetail, enqueueNextPage: vi.fn().mockResolvedValue(undefined) },
+    );
+
+    expect(events.published).toContainEqual({ type: "enrichment.done" });
+  });
+
+  it('NO publica "enrichment.done" si todavía queda al menos un company-detail sin terminar', async () => {
+    const searchId = await repository.create(criteria);
+    const adapter = fakeAdapter({ 1: { companies: [company("a"), company("b")], hasMore: false } });
+    const events = fakeEvents();
+    // Solo "a" termina antes de que search-list llegue a su chequeo final;
+    // "b" queda pendiente.
+    const enqueueCompanyDetail = vi.fn(async ({ searchId: sid, slug }: { searchId: string; slug: string }) => {
+      if (slug === "a") await repository.recordCompanyDetailCompleted(sid);
+    });
+
+    await processSearchList(
+      { searchId, criteria, page: 1 },
+      { adapter, repository, events, enqueueCompanyDetail, enqueueNextPage: vi.fn().mockResolvedValue(undefined) },
+    );
+
+    expect(events.published).not.toContainEqual({ type: "enrichment.done" });
+  });
+
   it("si el adapter falla con blocked, pausa la búsqueda y publica 'paused' (no tira, no encola)", async () => {
     const searchId = await repository.create(criteria);
     const adapter: JobSourcePort = {

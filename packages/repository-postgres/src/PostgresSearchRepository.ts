@@ -1,6 +1,6 @@
 import type { Company, SearchCriteria } from "@diegosancheznearcode/contracts";
 import { CompanySchema } from "@diegosancheznearcode/contracts";
-import type { SearchRepositoryPort, SearchSnapshot } from "@jobsradar/domain";
+import type { CompanyDetailCounts, SearchRepositoryPort, SearchSnapshot } from "@jobsradar/domain";
 import type postgres from "postgres";
 
 // Implementa SearchRepositoryPort — ver ARCHITECTURE.md sección 5 y 8.
@@ -64,6 +64,37 @@ export class PostgresSearchRepository implements SearchRepositoryPort {
 
   async updateStatus(searchId: string, status: SearchSnapshot["status"]): Promise<void> {
     await this.sql`UPDATE searches SET status = ${status} WHERE id = ${searchId}`;
+  }
+
+  async getStatus(searchId: string): Promise<SearchSnapshot["status"]> {
+    const [row] = await this.sql<{ status: string }[]>`SELECT status FROM searches WHERE id = ${searchId}`;
+    if (!row) throw new Error(`search ${searchId} no existe`);
+    return row.status as SearchSnapshot["status"];
+  }
+
+  // Pedido explícito del usuario ("el spinner no se puede dejar hasta que
+  // cargue todo") — ver el comentario en SearchRepositoryPort (sección 10).
+  async recordCompanyDetailEnqueued(searchId: string): Promise<void> {
+    await this.sql`UPDATE searches SET company_detail_enqueued = company_detail_enqueued + 1 WHERE id = ${searchId}`;
+  }
+
+  async recordCompanyDetailCompleted(searchId: string): Promise<CompanyDetailCounts> {
+    const [row] = await this.sql<{ company_detail_enqueued: number; company_detail_completed: number }[]>`
+      UPDATE searches
+      SET company_detail_completed = company_detail_completed + 1
+      WHERE id = ${searchId}
+      RETURNING company_detail_enqueued, company_detail_completed
+    `;
+    if (!row) throw new Error(`search ${searchId} no existe`);
+    return { enqueued: row.company_detail_enqueued, completed: row.company_detail_completed };
+  }
+
+  async getCompanyDetailCounts(searchId: string): Promise<CompanyDetailCounts> {
+    const [row] = await this.sql<{ company_detail_enqueued: number; company_detail_completed: number }[]>`
+      SELECT company_detail_enqueued, company_detail_completed FROM searches WHERE id = ${searchId}
+    `;
+    if (!row) throw new Error(`search ${searchId} no existe`);
+    return { enqueued: row.company_detail_enqueued, completed: row.company_detail_completed };
   }
 
   async attachCompany(searchId: string, company: Company, rank: number): Promise<void> {

@@ -103,6 +103,17 @@ export const SearchEventSchema = z.discriminatedUnion("type", [
     type: z.literal("error"),
     message: z.string().min(1),
   }),
+  // Pedido explícito del usuario: el spinner de carga del frontend no
+  // puede desaparecer en "done" — "done" solo significa que el LISTADO
+  // terminó, el enriquecimiento en segundo plano (company-detail) puede
+  // seguir un rato más (sección 10, resultado Fase 6). Se publica una sola
+  // vez, cuando el listado ya está "done"/"failed" (no va a encolar más
+  // company-detail) Y todos los company-detail ya encolados terminaron
+  // (éxito o company.failed) — nunca en "blocked"/"paused", que no es un
+  // estado terminal (ver searchListProcessor.ts/companyDetailProcessor.ts).
+  z.object({
+    type: z.literal("enrichment.done"),
+  }),
 ]);
 
 export type SearchCriteria = z.infer<typeof SearchCriteriaSchema>;

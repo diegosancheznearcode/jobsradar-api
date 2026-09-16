@@ -250,4 +250,93 @@ describe("processCompanyDetail", () => {
 
     expect(events.published).toEqual([{ type: "company.failed", slug: "vaulfi-1", reason: "not_found" }]);
   });
+
+  // Pedido explícito del usuario ("el spinner no se puede dejar hasta que
+  // cargue todo") — ver el comentario en SearchRepositoryPort.
+  describe("enrichment.done", () => {
+    it("se publica cuando este era el último company-detail pendiente y el listado ya es 'done'", async () => {
+      const searchId = await repository.create(criteria);
+      await repository.attachCompany(searchId, baseCompany(), 1);
+      await repository.recordCompanyDetailEnqueued(searchId); // search-list ya encoló 1
+      await repository.updateStatus(searchId, "done"); // ...y el listado ya terminó
+
+      const adapter: JobSourcePort = {
+        listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+        getCompany: async () => ({ ok: true, value: enrichedCompany() }),
+      };
+      const events = fakeEvents();
+
+      await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events });
+
+      expect(events.published).toContainEqual({ type: "enrichment.done" });
+    });
+
+    it("NO se publica si el listado todavía no terminó, aunque este sea el último company-detail pendiente", async () => {
+      const searchId = await repository.create(criteria);
+      await repository.attachCompany(searchId, baseCompany(), 1);
+      await repository.recordCompanyDetailEnqueued(searchId);
+      await repository.updateStatus(searchId, "running"); // el listado sigue corriendo
+
+      const adapter: JobSourcePort = {
+        listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+        getCompany: async () => ({ ok: true, value: enrichedCompany() }),
+      };
+      const events = fakeEvents();
+
+      await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events });
+
+      expect(events.published).not.toContainEqual({ type: "enrichment.done" });
+    });
+
+    it("NO se publica si todavía queda otro company-detail pendiente", async () => {
+      const searchId = await repository.create(criteria);
+      await repository.attachCompany(searchId, baseCompany(), 1);
+      await repository.recordCompanyDetailEnqueued(searchId);
+      await repository.recordCompanyDetailEnqueued(searchId); // 2 encolados, este job solo resuelve 1
+      await repository.updateStatus(searchId, "done");
+
+      const adapter: JobSourcePort = {
+        listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+        getCompany: async () => ({ ok: true, value: enrichedCompany() }),
+      };
+      const events = fakeEvents();
+
+      await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events });
+
+      expect(events.published).not.toContainEqual({ type: "enrichment.done" });
+    });
+
+    it("un cache-hit (ya enriquecida y fresca) también cuenta como intento resuelto", async () => {
+      const searchId = await repository.create(criteria);
+      await repository.attachCompany(searchId, enrichedCompany(), 1); // ya tiene founders -> cache-hit
+      await repository.recordCompanyDetailEnqueued(searchId);
+      await repository.updateStatus(searchId, "done");
+
+      const adapter: JobSourcePort = {
+        listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+        getCompany: vi.fn(),
+      };
+      const events = fakeEvents();
+
+      await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events });
+
+      expect(adapter.getCompany).not.toHaveBeenCalled();
+      expect(events.published).toContainEqual({ type: "enrichment.done" });
+    });
+
+    it("un fallo 'blocked' NO cuenta como completado — el contador queda esperando un reintento", async () => {
+      const searchId = await repository.create(criteria);
+      await repository.attachCompany(searchId, baseCompany(), 1);
+      await repository.recordCompanyDetailEnqueued(searchId);
+
+      const adapter: JobSourcePort = {
+        listCompanies: async () => ({ ok: true, value: { companies: [], hasMore: false } }),
+        getCompany: async () => ({ ok: false, error: { kind: "blocked", retryable: true, detail: "captcha" } }),
+      };
+
+      await processCompanyDetail({ searchId, slug: "vaulfi-1" }, { adapter, repository, events: fakeEvents() });
+
+      expect(await repository.getCompanyDetailCounts(searchId)).toEqual({ enqueued: 1, completed: 0 });
+    });
+  });
 });

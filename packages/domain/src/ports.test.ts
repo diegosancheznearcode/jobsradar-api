@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Company, SearchCriteria } from "@diegosancheznearcode/contracts";
 import { ok } from "./result.js";
-import type { SearchRepositoryPort, SearchSnapshot } from "./ports.js";
+import type { CompanyDetailCounts, SearchRepositoryPort, SearchSnapshot } from "./ports.js";
 
 // No hay lógica real que probar en interfaces — esto documenta el contrato
 // con una implementación en memoria mínima y confirma que compila y se
@@ -9,10 +9,12 @@ import type { SearchRepositoryPort, SearchSnapshot } from "./ports.js";
 class InMemorySearchRepository implements SearchRepositoryPort {
   private companies = new Map<string, Company>();
   private searches = new Map<string, SearchSnapshot>();
+  private counts = new Map<string, CompanyDetailCounts>();
 
   async create(_criteria: SearchCriteria): Promise<string> {
     const id = `search-${this.searches.size + 1}`;
     this.searches.set(id, { status: "queued", progress: { found: 0, target: 0, page: 0 }, companies: [] });
+    this.counts.set(id, { enqueued: 0, completed: 0 });
     return id;
   }
 
@@ -35,6 +37,28 @@ class InMemorySearchRepository implements SearchRepositoryPort {
   async updateStatus(searchId: string, status: SearchSnapshot["status"]): Promise<void> {
     const snapshot = this.searches.get(searchId);
     if (snapshot) snapshot.status = status;
+  }
+
+  async getStatus(searchId: string): Promise<SearchSnapshot["status"]> {
+    return (await this.getSnapshot(searchId)).status;
+  }
+
+  async recordCompanyDetailEnqueued(searchId: string): Promise<void> {
+    const counts = this.counts.get(searchId);
+    if (counts) counts.enqueued += 1;
+  }
+
+  async recordCompanyDetailCompleted(searchId: string): Promise<CompanyDetailCounts> {
+    const counts = this.counts.get(searchId);
+    if (!counts) throw new Error("not found");
+    counts.completed += 1;
+    return { ...counts };
+  }
+
+  async getCompanyDetailCounts(searchId: string): Promise<CompanyDetailCounts> {
+    const counts = this.counts.get(searchId);
+    if (!counts) throw new Error("not found");
+    return { ...counts };
   }
 }
 
@@ -75,5 +99,17 @@ describe("SearchRepositoryPort (implementación en memoria)", () => {
 
     await repo.updateStatus(searchId, "running");
     await expect(repo.getSnapshot(searchId)).resolves.toMatchObject({ status: "running" });
+  });
+
+  it("los contadores de company-detail arrancan en 0/0 y suben de a uno (pedido explícito del usuario, enrichment.done)", async () => {
+    const repo = new InMemorySearchRepository();
+    const searchId = await repo.create({ jobTitle: "Backend Engineer", remoteOnly: true, targetCompanies: 50 });
+
+    await expect(repo.getCompanyDetailCounts(searchId)).resolves.toEqual({ enqueued: 0, completed: 0 });
+
+    await repo.recordCompanyDetailEnqueued(searchId);
+    await repo.recordCompanyDetailEnqueued(searchId);
+    await expect(repo.recordCompanyDetailCompleted(searchId)).resolves.toEqual({ enqueued: 2, completed: 1 });
+    await expect(repo.getCompanyDetailCounts(searchId)).resolves.toEqual({ enqueued: 2, completed: 1 });
   });
 });

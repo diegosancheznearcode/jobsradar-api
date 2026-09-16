@@ -144,6 +144,11 @@ describe("SearchEventSchema", () => {
     expect(() => SearchEventSchema.parse({ type: "company.started", slug: "x" })).toThrow();
   });
 
+  it('valida enrichment.done (sin payload) — pedido explícito del usuario: el spinner no puede desaparecer hasta que TODO el enriquecimiento termine, no solo el listado', () => {
+    const result = SearchEventSchema.parse({ type: "enrichment.done" });
+    expect(result.type).toBe("enrichment.done");
+  });
+
   it("valida company.updated con una Company completa (sin rank, a diferencia de company.found)", () => {
     const result = SearchEventSchema.parse({
       type: "company.updated",

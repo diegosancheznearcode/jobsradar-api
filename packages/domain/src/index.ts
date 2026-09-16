@@ -5,4 +5,5 @@ export type {
   SearchRepositoryPort,
   EventPublisherPort,
   SearchSnapshot,
+  CompanyDetailCounts,
 } from "./ports.js";

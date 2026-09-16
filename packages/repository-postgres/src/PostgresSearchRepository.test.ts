@@ -73,6 +73,61 @@ describe("PostgresSearchRepository.updateStatus", () => {
   });
 });
 
+describe("PostgresSearchRepository.getStatus", () => {
+  it("devuelve el status actual sin traer companies (más liviano que getSnapshot)", async () => {
+    const searchId = await repo.create(baseCriteria);
+    expect(await repo.getStatus(searchId)).toBe("queued");
+
+    await repo.updateStatus(searchId, "done");
+    expect(await repo.getStatus(searchId)).toBe("done");
+  });
+
+  it("tira si la búsqueda no existe", async () => {
+    await expect(repo.getStatus("00000000-0000-0000-0000-000000000000")).rejects.toThrow();
+  });
+});
+
+// Pedido explícito del usuario ("el spinner no se puede dejar hasta que
+// cargue todo") — ver el comentario en SearchRepositoryPort.
+describe("PostgresSearchRepository — contadores de company-detail (enrichment.done)", () => {
+  it("arrancan en 0/0", async () => {
+    const searchId = await repo.create(baseCriteria);
+    expect(await repo.getCompanyDetailCounts(searchId)).toEqual({ enqueued: 0, completed: 0 });
+  });
+
+  it("recordCompanyDetailEnqueued suma de a uno", async () => {
+    const searchId = await repo.create(baseCriteria);
+    await repo.recordCompanyDetailEnqueued(searchId);
+    await repo.recordCompanyDetailEnqueued(searchId);
+    await repo.recordCompanyDetailEnqueued(searchId);
+    expect(await repo.getCompanyDetailCounts(searchId)).toEqual({ enqueued: 3, completed: 0 });
+  });
+
+  it("recordCompanyDetailCompleted suma de a uno y devuelve los dos contadores actualizados", async () => {
+    const searchId = await repo.create(baseCriteria);
+    await repo.recordCompanyDetailEnqueued(searchId);
+    await repo.recordCompanyDetailEnqueued(searchId);
+
+    const afterFirst = await repo.recordCompanyDetailCompleted(searchId);
+    expect(afterFirst).toEqual({ enqueued: 2, completed: 1 });
+
+    const afterSecond = await repo.recordCompanyDetailCompleted(searchId);
+    expect(afterSecond).toEqual({ enqueued: 2, completed: 2 });
+  });
+
+  it("los contadores son independientes por búsqueda", async () => {
+    const searchA = await repo.create(baseCriteria);
+    const searchB = await repo.create(baseCriteria);
+
+    await repo.recordCompanyDetailEnqueued(searchA);
+    await repo.recordCompanyDetailEnqueued(searchA);
+    await repo.recordCompanyDetailEnqueued(searchB);
+
+    expect(await repo.getCompanyDetailCounts(searchA)).toEqual({ enqueued: 2, completed: 0 });
+    expect(await repo.getCompanyDetailCounts(searchB)).toEqual({ enqueued: 1, completed: 0 });
+  });
+});
+
 describe("PostgresSearchRepository.attachCompany + findCompanyBySlug", () => {
   it("round-trip: attach y después find devuelve la misma empresa", async () => {
     const searchId = await repo.create(baseCriteria);

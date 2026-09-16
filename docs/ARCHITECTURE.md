@@ -1038,6 +1038,57 @@ empresa-linkedin` (servicio propio del usuario, no de Wellfound) con
   de `CompanySchema`; no se intenta "limpiar" la URL, es responsabilidad
   del servicio externo.
 
+**Evento `enrichment.done` — pedido explícito del usuario ("el spinner no
+se puede dejar hasta que cargue todo")**. El spinner de carga de
+`jobsradar-web` (Fase 12) desaparecía en `status: "done"`, pero "done"
+solo significa que el LISTADO terminó — el enriquecimiento en segundo
+plano (`company-detail`: founders/market/website/LinkedIn) sigue un rato
+más (este mismo documento, sección de arriba: "'done' significa que el
+listado terminó, no que toda la enriquecida terminó"). No existía ninguna
+señal de "todo terminó de verdad"; se agrega una.
+
+- **Contadores** (`searches.company_detail_enqueued`/
+  `company_detail_completed`, migración `003_search_enrichment_counts.sql`):
+  `search-list` llama a `recordCompanyDetailEnqueued` una vez por cada
+  `company-detail` que encola (ANTES de encolarlo — si se contara después,
+  un job que corre muy rápido podría completarse antes de que se llegue a
+  contarlo como encolado). `company-detail` llama a
+  `recordCompanyDetailCompleted` al resolver cualquier intento: éxito,
+  cache-hit (ya enriquecida y fresca — igual hay que contrapesar el
+  `enqueued` de search-list), o un error que no sea `"blocked"`.
+  `"blocked"` queda afuera a propósito: no hubo resolución real (hay que
+  reintentar), y como eso pausa toda la búsqueda, el spinner de todos modos
+  deja de mostrarse (`status: "paused"` en vez de `"done"`) sin depender de
+  que este contador cierre — evita que un bloqueo deje el contador
+  desincronizado para siempre esperando un reintento que hoy no existe
+  (ver más abajo).
+- **Cuándo se publica**: cuando `completed >= enqueued` Y el listado ya es
+  terminal (`status === "done"`). El chequeo corre en DOS lugares porque
+  cualquiera de los dos puede terminar primero: `company-detail`
+  (`finishEnrichmentAttempt` en `companyDetailProcessor.ts`) lo chequea al
+  resolver cada job, para el caso normal donde el listado ya terminó antes;
+  `search-list` lo vuelve a chequear una vez, justo después de marcar
+  `"done"`, para el caso donde el enriquecimiento se adelantó y ya había
+  terminado ANTES que el listado (búsquedas chicas, pocas páginas) — sin
+  ese segundo chequeo, nada volvería a evaluarlo nunca más, porque
+  `company-detail` ya no tendría más jobs pendientes que disparen el suyo.
+- **`jobsradar-web`** (`useSearch.ts`): nuevo campo de estado
+  `enrichmentDone: boolean`, en `false` desde `initialState` y en cada
+  `start()`; `"enrichment.done"` lo pasa a `true`. `App.tsx` separa la
+  condición del spinner (`showSpinner`) de la que deshabilita el
+  formulario (`isSearching`, sin cambios): `showSpinner` sigue en `true`
+  mientras `status` sea `"starting"`/`"running"`, y TAMBIÉN mientras
+  `status === "done" && !enrichmentDone`. `"paused"`/`"error"` no entran en
+  `showSpinner` — StatusPanel ya muestra su propio mensaje para esos casos,
+  y (ver contador de `"blocked"` arriba) esperar ahí a `enrichment.done`
+  podría no llegar nunca.
+- **Limitación conocida, no resuelta acá**: no existe ningún mecanismo real
+  de reintento para una búsqueda `"paused"` (`resumeAt` es solo informativo
+  — ver `searchListProcessor.ts`/`companyDetailProcessor.ts`, ningún cron
+  ni worker la vuelve a encolar). Si eso se implementa en el futuro, un
+  reintento exitoso de un job antes "blocked" sí tiene que llamar a
+  `recordCompanyDetailCompleted` para no dejar el contador desincronizado.
+
 ---
 
 ## 11. Estrategia de pruebas (TDD estricto: red-green-refactor)

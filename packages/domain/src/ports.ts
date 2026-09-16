@@ -28,6 +28,11 @@ export interface SearchSnapshot {
   companies: Company[];
 }
 
+export interface CompanyDetailCounts {
+  enqueued: number;
+  completed: number;
+}
+
 export interface SearchRepositoryPort {
   create(criteria: SearchCriteria): Promise<string>; // searchId
   attachCompany(searchId: string, company: Company, rank: number): Promise<void>;
@@ -39,6 +44,19 @@ export interface SearchRepositoryPort {
   // terminada. search-list lo llama al arrancar (running) y al dejar de
   // paginar (done/paused).
   updateStatus(searchId: string, status: SearchSnapshot["status"]): Promise<void>;
+  // Pedido explícito del usuario ("el spinner no se puede dejar hasta que
+  // cargue todo"): sin esto no había forma de saber cuándo terminó el
+  // enriquecimiento en segundo plano (company-detail), solo cuándo terminó
+  // el listado ("done" ≠ "todo enriquecido", sección 10). search-list llama
+  // a recordCompanyDetailEnqueued una vez por cada company-detail que
+  // encola; company-detail llama a recordCompanyDetailCompleted al
+  // terminar cada job (éxito o company.failed, nunca en "blocked" — ver
+  // companyDetailProcessor.ts). Cuando enqueued === completed Y el listado
+  // ya es terminal, se publica el evento "enrichment.done".
+  getStatus(searchId: string): Promise<SearchSnapshot["status"]>;
+  recordCompanyDetailEnqueued(searchId: string): Promise<void>;
+  recordCompanyDetailCompleted(searchId: string): Promise<CompanyDetailCounts>;
+  getCompanyDetailCounts(searchId: string): Promise<CompanyDetailCounts>;
 }
 
 export interface EventPublisherPort {

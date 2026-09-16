@@ -26,12 +26,35 @@ export interface CompanyDetailDeps {
   log?: (message: string) => void;
 }
 
+// Pedido explícito del usuario ("el spinner no se puede dejar hasta que
+// cargue todo") — ver el comentario en SearchRepositoryPort. Se llama al
+// terminar CUALQUIER intento resuelto (éxito, cache-hit, o error que no
+// sea "blocked" — ver abajo por qué "blocked" queda afuera). Publica
+// "enrichment.done" solo si además el listado ya es terminal ("done"):
+// mientras el listado siga corriendo, puede faltar encolar más
+// company-detail todavía, así que llegar a enqueued===completed acá no
+// significa "no queda nada más" — search-list hace su propio chequeo
+// equivalente al terminar (ver searchListProcessor.ts), para el caso donde
+// el enriquecimiento se adelanta y termina antes que el listado.
+async function finishEnrichmentAttempt(searchId: string, deps: CompanyDetailDeps): Promise<void> {
+  const { enqueued, completed } = await deps.repository.recordCompanyDetailCompleted(searchId);
+  if (completed < enqueued) return;
+  const status = await deps.repository.getStatus(searchId);
+  if (status !== "done") return;
+  await deps.events.publish(searchId, { type: "enrichment.done" });
+}
+
 export async function processCompanyDetail(data: CompanyDetailJobData, deps: CompanyDetailDeps): Promise<void> {
   const log = deps.log ?? console.error;
 
   const cached = await deps.repository.findCompanyBySlug(data.slug, CACHE_MAX_AGE_HOURS);
   if (cached && cached.founders.length > 0) {
     // Ya enriquecida y todavía fresca — evita gastar sesión/red de nuevo.
+    // Igual cuenta como "intento resuelto": search-list SÍ contó este slug
+    // como encolado (recordCompanyDetailEnqueued), así que sin este
+    // contrapeso el conteo quedaría descuadrado para siempre y
+    // "enrichment.done" nunca se publicaría.
+    await finishEnrichmentAttempt(data.searchId, deps);
     return;
   }
 
@@ -41,6 +64,10 @@ export async function processCompanyDetail(data: CompanyDetailJobData, deps: Com
       log(`[company-detail] slug=${data.slug} blocked — falta sesión válida, renovar storageState.json manualmente`);
       // blocked afecta a toda la búsqueda, no solo a esta empresa (Fase 4:
       // el circuit breaker del adaptador ya frenó al resto de esta cola).
+      // NO cuenta como completado a propósito: no hubo resolución real,
+      // hay que reintentar. Como esto pausa toda la búsqueda, el spinner
+      // igual deja de mostrarse (status "paused" ≠ "running"/"done" en
+      // App.tsx) sin depender de que este contador cierre.
       await deps.repository.updateStatus(data.searchId, "paused");
       await deps.events.publish(data.searchId, {
         type: "paused",
@@ -54,6 +81,7 @@ export async function processCompanyDetail(data: CompanyDetailJobData, deps: Com
         slug: data.slug,
         reason: result.error.kind,
       });
+      await finishEnrichmentAttempt(data.searchId, deps);
     }
     return;
   }
@@ -86,4 +114,6 @@ export async function processCompanyDetail(data: CompanyDetailJobData, deps: Com
   if (updated) {
     await deps.events.publish(data.searchId, { type: "company.updated", company: updated });
   }
+
+  await finishEnrichmentAttempt(data.searchId, deps);
 }

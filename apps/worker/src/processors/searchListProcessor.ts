@@ -97,6 +97,12 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
     newlyFoundThisPage += 1;
     await deps.repository.attachCompany(data.searchId, company, rank);
     await deps.events.publish(data.searchId, { type: "company.found", company, rank });
+    // Se cuenta ANTES de encolar (no después) — pedido explícito del
+    // usuario ("el spinner no se puede dejar hasta que cargue todo"): si se
+    // contara después, un company-detail que corre muy rápido podría
+    // terminar (recordCompanyDetailCompleted) antes de que esta línea
+    // llegue a sumarlo como encolado, dejando enqueued < completed.
+    await deps.repository.recordCompanyDetailEnqueued(data.searchId);
     await deps.enqueueCompanyDetail({ searchId: data.searchId, slug: company.slug });
   }
 
@@ -139,4 +145,14 @@ export async function processSearchList(data: SearchListJobData, deps: SearchLis
   await deps.repository.updateStatus(data.searchId, "done");
   const partial = after.companies.filter((c) => c.extraction.missing.length > 0).length;
   await deps.events.publish(data.searchId, { type: "done", total: after.progress.found, partial });
+
+  // Cubre el caso donde el enriquecimiento ya alcanzó a todas las empresas
+  // encoladas ANTES de que el listado terminara (búsquedas chicas, pocas
+  // páginas) — sin este chequeo acá, nada volvería a evaluarlo nunca más,
+  // porque company-detail ya no tiene más jobs pendientes que disparen su
+  // propio chequeo (ver companyDetailProcessor.ts).
+  const counts = await deps.repository.getCompanyDetailCounts(data.searchId);
+  if (counts.completed >= counts.enqueued) {
+    await deps.events.publish(data.searchId, { type: "enrichment.done" });
+  }
 }
