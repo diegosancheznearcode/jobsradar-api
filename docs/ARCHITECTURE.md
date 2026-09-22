@@ -558,6 +558,31 @@ nueva. Usa el `GITHUB_TOKEN` por defecto del workflow (con `permissions:
 packages: write` a nivel de job), sin necesitar un secret nuevo, porque
 publicar es una acción sobre el propio repo.
 
+**Dejó de ser cierto el 2026-09-22, cuando el repo se transfirió** de la
+cuenta personal `diegosancheznearcode` a la organización `nearcodecr`
+(`git remote set-url` actualizado en ambos repos; ver también
+`nearcodecr/nearcode-infra` — Terraform + Cloud Build para Cloud Run,
+trabajo de onboarding de Dorian Cortes ya mergeado a `main` en los dos
+repos). El equipo decidió **no renombrar** el paquete (`@diegosancheznearcode/
+contracts` se sigue publicando bajo la cuenta personal original —
+`jobsradar-web`/`Dockerfile` y su `cloudbuild.yaml` ya asumían esto para la
+lectura, con el secret `JRW_GH_PACKAGES_TOKEN` en Secret Manager). Pero
+"publicar es una acción sobre el propio repo" dejó de valer para
+`jobsradar-api`: su `GITHUB_TOKEN` automático ahora pertenece a
+`nearcodecr`, una cuenta distinta de la dueña del paquete, y GitHub
+Packages exige ser colaborador explícito con escritura sobre ESE paquete
+para poder publicar en él — confirmado en vivo, los 3 pushes a `main`
+inmediatos a la transferencia fallaron en `publish-contracts` con `403
+Permission permission_denied: The requested installation does not exist`
+(mientras `build-test`/`docker-build` seguían en verde). El job pasa a usar
+un secret nuevo, `CONTRACTS_PUBLISH_TOKEN` — mismo patrón que
+`JOBSRADAR_API_RO_TOKEN` un poco más abajo: tiene que ser un **classic PAT**
+(no fine-grained, ver el hallazgo real de esa sección) con scope
+`write:packages` (+ `read:packages`, lo usa el `npm view` del paso), generado
+desde la cuenta `diegosancheznearcode` y agregado como secret del repo
+`nearcodecr/jobsradar-api`. Pendiente: alguien con acceso a esa cuenta tiene
+que generarlo y cargarlo — no es algo que se pueda automatizar desde la CLI.
+
 Del lado de `jobsradar-web`, el workaround de Fase 1 (clonar `jobsradar-api`
 como sibling en CI y symlinkear `packages/contracts/dist` para resolver el
 `file:` dependency) desaparece por completo: la dependencia pasa a ser

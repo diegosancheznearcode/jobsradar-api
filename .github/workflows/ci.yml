@@ -87,6 +87,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # "packages: write" ya no alcanza acá: desde que el repo se transfirió
+      # de diegosancheznearcode (cuenta personal) a nearcodecr (org), el
+      # GITHUB_TOKEN automático de este workflow pertenece a nearcodecr, pero
+      # @diegosancheznearcode/contracts se sigue publicando bajo la cuenta
+      # personal original (decisión del equipo, ver .npmrc y el Dockerfile de
+      # jobsradar-web — mismo motivo que justifica el secret
+      # JRW_GH_PACKAGES_TOKEN ahí: no se renombró el paquete). GitHub
+      # Packages exige ser colaborador explícito CON ESCRITURA del paquete
+      # para publicar — un GITHUB_TOKEN de otra cuenta/org da 403 "Permission
+      # permission_denied: The requested installation does not exist"
+      # (confirmado: los 3 pushes a main desde la transferencia fallaron acá,
+      # aunque build-test y docker-build siguieron en verde). CONTRACTS_PUBLISH_TOKEN
+      # es un classic PAT con scope write:packages (y read:packages, lo usa
+      # `npm view` más abajo) generado desde la cuenta diegosancheznearcode.
       packages: write
 
     steps:
@@ -122,4 +136,4 @@ jobs:
             echo "Versión $LOCAL_VERSION ya publicada, nada que hacer."
           fi
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.CONTRACTS_PUBLISH_TOKEN }}
