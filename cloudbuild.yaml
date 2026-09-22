@@ -15,6 +15,13 @@
 # separate migration step here, same reasoning as talentradar-backend: Cloud
 # SQL is only reachable over its private IP inside the VPC, and the default
 # Cloud Build worker pool has no VPC access.
+#
+# Build runs before Typecheck/Test, mirroring .github/workflows/ci.yml:
+# packages/domain and apps/* resolve @diegosancheznearcode/contracts through
+# its dist/ (package.json "types"/"main"), not its source -- dist/ is
+# gitignored, so it does not exist on a clean checkout until compiled. pnpm
+# build respects the workspace's topological order (contracts -> domain ->
+# api/worker), which is why it goes first.
 
 steps:
   - id: Start Postgres
@@ -45,6 +52,11 @@ steps:
     name: node:22-alpine
     entrypoint: sh
     args: ['-c', 'corepack enable && pnpm install --frozen-lockfile']
+
+  - id: Build
+    name: node:22-alpine
+    entrypoint: sh
+    args: ['-c', 'corepack enable && pnpm build']
 
   - id: Typecheck
     name: node:22-alpine
