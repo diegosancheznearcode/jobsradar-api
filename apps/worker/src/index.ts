@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import {
@@ -96,3 +97,9 @@ for (const queue of [searchListQueue, companyDetailQueue, jobDetailQueue]) {
 }
 
 console.log("Worker escuchando colas: search-list, job-detail, company-detail");
+
+// Cloud Run v2 requires every service's container to listen on $PORT and
+// respond to its startup/liveness probes, even a queue consumer with no HTTP
+// API of its own — this has no other purpose than satisfying that probe.
+const PORT = Number(process.env.PORT ?? 8080);
+createServer((_req, res) => res.writeHead(200).end("ok")).listen(PORT);
