@@ -1,0 +1,185 @@
+# Build and deploy jobsradar-api (apps/api) and jobsradar-worker (apps/worker)
+# to Cloud Run. One repo, two deployables, one trigger.
+#
+# A reviewable copy lives at ci/jobsradar-api.cloudbuild.yaml in
+# nearcodecr/nearcode-infra. Keep them in sync; the trigger reads THIS one.
+#
+# Substitutions come from the trigger: _AR_HOSTNAME, _AR_PROJECT_ID,
+# _AR_REPOSITORY, _DEPLOY_REGION, _SERVICE_NAME (jobsradar-api),
+# _WORKER_SERVICE_NAME (jobsradar-worker) — the second is not a standard
+# substitution the other pipelines use; it exists because this one repo builds
+# and deploys two Cloud Run services instead of one.
+#
+# Both apps/api and apps/worker run their own migrations against DATABASE_URL
+# on start (packages/repository-postgres/src/migrate.ts), so there is no
+# separate migration step here, same reasoning as talentradar-backend: Cloud
+# SQL is only reachable over its private IP inside the VPC, and the default
+# Cloud Build worker pool has no VPC access.
+
+steps:
+  - id: Start Postgres
+    name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - -d
+      - --name=jra-test-pg
+      - --network=cloudbuild
+      - -e
+      - POSTGRES_USER=jobsradar
+      - -e
+      - POSTGRES_PASSWORD=jobsradar
+      - -e
+      - POSTGRES_DB=jobsradar
+      - postgres:16-alpine
+
+  - id: Start Redis
+    name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - -d
+      - --name=jra-test-redis
+      - --network=cloudbuild
+      - redis:7-alpine
+
+  - id: Install
+    name: node:22-alpine
+    entrypoint: sh
+    args: ['-c', 'corepack enable && pnpm install --frozen-lockfile']
+
+  - id: Typecheck
+    name: node:22-alpine
+    entrypoint: sh
+    args: ['-c', 'corepack enable && pnpm typecheck']
+
+  - id: Lint
+    name: node:22-alpine
+    entrypoint: sh
+    args: ['-c', 'corepack enable && pnpm lint']
+
+  # Postgres takes a couple seconds to accept connections; docker run -d
+  # returns long before that.
+  - id: Wait for Postgres
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        for _ in $$(seq 1 30); do
+          docker exec jra-test-pg pg_isready -U jobsradar -q && exit 0
+          sleep 2
+        done
+        echo "Postgres never accepted connections; container logs:" >&2
+        docker logs jra-test-pg >&2
+        exit 1
+
+  - id: Test
+    name: node:22-alpine
+    entrypoint: sh
+    args: ['-c', 'corepack enable && pnpm test']
+    env:
+      - 'DATABASE_URL=postgres://jobsradar:jobsradar@jra-test-pg:5432/jobsradar'
+      - 'REDIS_URL=redis://jra-test-redis:6379'
+
+  # Best effort. The first build after this lands has nothing to pull, and
+  # that miss cannot fail the pipeline.
+  - id: Pull cache api
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - docker pull $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME/$_SERVICE_NAME:latest || exit 0
+
+  - id: Pull cache worker
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - docker pull $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_WORKER_SERVICE_NAME/$_WORKER_SERVICE_NAME:latest || exit 0
+
+  - id: Build api
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME/$_SERVICE_NAME:latest
+      - -t
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - -t
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME/$_SERVICE_NAME:latest
+      - .
+      - -f
+      - apps/api/Dockerfile
+
+  - id: Build worker
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_WORKER_SERVICE_NAME/$_WORKER_SERVICE_NAME:latest
+      - -t
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_WORKER_SERVICE_NAME/$_WORKER_SERVICE_NAME:$COMMIT_SHA
+      - -t
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_WORKER_SERVICE_NAME/$_WORKER_SERVICE_NAME:latest
+      - .
+      - -f
+      - apps/worker/Dockerfile
+
+  # Explicit, because `images:` only pushes once every step has finished --
+  # too late for a Deploy step that needs the image to already exist.
+  - id: Push api
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME/$_SERVICE_NAME:$COMMIT_SHA']
+
+  - id: Push api latest
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME/$_SERVICE_NAME:latest']
+
+  - id: Push worker
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_WORKER_SERVICE_NAME/$_WORKER_SERVICE_NAME:$COMMIT_SHA']
+
+  - id: Push worker latest
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_WORKER_SERVICE_NAME/$_WORKER_SERVICE_NAME:latest']
+
+  - id: Deploy api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    # Deploys the immutable :$COMMIT_SHA tag, never :latest. Terraform ignores
+    # this service's image field precisely because this step owns it.
+    args:
+      - run
+      - services
+      - update
+      - $_SERVICE_NAME
+      - --platform=managed
+      - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_SERVICE_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID
+      - --region=$_DEPLOY_REGION
+      - --quiet
+
+  - id: Deploy worker
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - $_WORKER_SERVICE_NAME
+      - --platform=managed
+      - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$_WORKER_SERVICE_NAME/$_WORKER_SERVICE_NAME:$COMMIT_SHA
+      - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID
+      - --region=$_DEPLOY_REGION
+      - --quiet
+
+timeout: 1200s
+
+options:
+  # Required: the build runs as an explicit service account, which has no
+  # default logs bucket.
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: ALLOW_LOOSE
+
+tags:
+  - gcp-cloud-build-deploy-cloud-run
+  - gcp-cloud-build-deploy-cloud-run-managed
+  - jobsradar-api
+  - jobsradar-worker

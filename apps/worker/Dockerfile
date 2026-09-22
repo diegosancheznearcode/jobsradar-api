@@ -28,4 +28,7 @@ WORKDIR /repo
 RUN corepack enable
 ENV NODE_ENV=production
 COPY --from=build /repo .
+# 8080: matches container_port in Terraform's run.tf. The worker has no HTTP
+# API of its own; this is only for Cloud Run's startup/liveness probe.
+EXPOSE 8080
 CMD ["node", "apps/worker/dist/index.js"]

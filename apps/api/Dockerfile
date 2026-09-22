@@ -26,5 +26,7 @@ WORKDIR /repo
 RUN corepack enable
 ENV NODE_ENV=production
 COPY --from=build /repo .
-EXPOSE 3000
+# 8080, not 3000: it's what container_port is set to in Terraform's run.tf,
+# and what Cloud Run injects into $PORT at runtime regardless of this line.
+EXPOSE 8080
 CMD ["node", "apps/api/dist/index.js"]
