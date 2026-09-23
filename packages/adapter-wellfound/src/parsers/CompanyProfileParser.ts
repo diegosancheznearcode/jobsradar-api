@@ -1,5 +1,5 @@
-import type { Founder } from "@diegosancheznearcode/contracts";
-import { FounderSchema } from "@diegosancheznearcode/contracts";
+import type { Founder } from "@nearcodecr/jobsradar-contracts";
+import { FounderSchema } from "@nearcodecr/jobsradar-contracts";
 import { err } from "@jobsradar/domain";
 import type { ExtractionError, Result } from "@jobsradar/domain";
 import { extractWithCascade, isCloudflareChallenge } from "../cascade.js";

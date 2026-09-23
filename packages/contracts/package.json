@@ -1,5 +1,5 @@
 {
-  "name": "@diegosancheznearcode/contracts",
+  "name": "@nearcodecr/jobsradar-contracts",
   "version": "0.5.0",
   "description": "Esquemas Zod compartidos entre jobsradar-api y jobsradar-web. Ver ARCHITECTURE.md sección 4.1.",
   "type": "module",
@@ -8,7 +8,7 @@
   "files": ["dist"],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/diegosancheznearcode/jobsradar-api.git"
+    "url": "git+https://github.com/nearcodecr/jobsradar-api.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

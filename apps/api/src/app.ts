@@ -1,7 +1,7 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
-import { SearchCriteriaSchema } from "@diegosancheznearcode/contracts";
+import { SearchCriteriaSchema } from "@nearcodecr/jobsradar-contracts";
 import type { SearchRepositoryPort } from "@jobsradar/domain";
 import { companiesToCsv, filterCompaniesByLocation } from "./csv.js";
 

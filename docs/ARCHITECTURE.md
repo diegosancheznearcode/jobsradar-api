@@ -429,7 +429,7 @@ jobsradar-api/                  # backend — repo separado
 │   └── worker/                 # Consumidores BullMQ — processors/ (sección 10)
 ├── packages/
 │   ├── domain/                 # Value Objects, entidades, puertos, Result — interno, no se publica
-│   ├── contracts/               # Esquemas Zod — publicado como @diegosancheznearcode/contracts
+│   ├── contracts/               # Esquemas Zod — publicado como @nearcodecr/jobsradar-contracts
 │   ├── adapter-wellfound/       # implementa JobSourcePort — parsers + HttpClient/BrowserClient (sección 6)
 │   ├── repository-postgres/     # implementa SearchRepositoryPort — postgres.js, sin ORM (sección 8)
 │   └── events-redis/            # implementa EventPublisherPort + subscribeToSearch (Redis pub/sub, sección 5)
@@ -437,14 +437,14 @@ jobsradar-api/                  # backend — repo separado
 
 jobsradar-web/                  # frontend — repo separado, también hexagonal (AD-08)
 ├── src/
-│   ├── domain/                 # tipos/entidades de UI derivados de @diegosancheznearcode/contracts, sin React
+│   ├── domain/                 # tipos/entidades de UI derivados de @nearcodecr/jobsradar-contracts, sin React
 │   ├── application/             # casos de uso (runSearch, exportResults) + puertos (ver abajo)
 │   ├── infrastructure/          # adaptadores: HttpSearchAdapter, SseAdapter, CsvExportAdapter
 │   └── ui/                      # componentes, páginas, hooks (React 19 + Vite + TanStack Query/Table + Tailwind) — consume application/ solo a través de los puertos
-└── package.json                 # depende de @diegosancheznearcode/contracts como paquete versionado
+└── package.json                 # depende de @nearcodecr/jobsradar-contracts como paquete versionado
 ```
 
-`@diegosancheznearcode/contracts` se publica desde `jobsradar-api` a GitHub Packages
+`@nearcodecr/jobsradar-contracts` se publica desde `jobsradar-api` a GitHub Packages
 en cada push a `main` (workflow `publish-contracts`, condicionado a que la
 versión en `packages/contracts/package.json` haya cambiado); `jobsradar-web` lo
 instala como dependencia normal (`^0.1.0`), no por workspace compartido — ver
@@ -459,7 +459,7 @@ fijaba dónde vivía): paquete propio en vez de código embebido en
 el worker completo (sección 11) y para que `apps/api` también pueda
 importarlo si en algún momento necesita `getCompany` fuera de una cola.
 Depende de `@jobsradar/domain` (implementa `JobSourcePort`) y de
-`@diegosancheznearcode/contracts` (valida su salida contra los esquemas Zod). Sus
+`@nearcodecr/jobsradar-contracts` (valida su salida contra los esquemas Zod). Sus
 fixtures HTML viven en `packages/adapter-wellfound/fixtures/`, copiadas y
 redactadas desde las que generó la investigación de Fase 0.
 
@@ -497,7 +497,7 @@ igual, ya que ese login ocurre dentro del mismo proceso.
 ### Fase 7 — resultado (2026-08-26)
 
 `domain/index.ts` termina re-exportando no solo los tipos de
-`@diegosancheznearcode/contracts` sino también los esquemas Zod (`SearchCriteriaSchema`,
+`@nearcodecr/jobsradar-contracts` sino también los esquemas Zod (`SearchCriteriaSchema`,
 `SearchEventSchema`) — el formulario valida lo que manda con el primero, y
 `SseAdapter` valida en runtime cada frame SSE con el segundo antes de
 pasarlo a `application/` (un mensaje que no matchea se ignora, no tira la
@@ -558,35 +558,31 @@ nueva. Usa el `GITHUB_TOKEN` por defecto del workflow (con `permissions:
 packages: write` a nivel de job), sin necesitar un secret nuevo, porque
 publicar es una acción sobre el propio repo.
 
-**Dejó de ser cierto el 2026-09-22, cuando el repo se transfirió** de la
-cuenta personal `diegosancheznearcode` a la organización `nearcodecr`
-(`git remote set-url` actualizado en ambos repos; ver también
-`nearcodecr/nearcode-infra` — Terraform + Cloud Build para Cloud Run,
-trabajo de onboarding de Dorian Cortes ya mergeado a `main` en los dos
-repos). El equipo decidió **no renombrar** el paquete (`@diegosancheznearcode/
-contracts` se sigue publicando bajo la cuenta personal original —
-`jobsradar-web`/`Dockerfile` y su `cloudbuild.yaml` ya asumían esto para la
-lectura, con el secret `JRW_GH_PACKAGES_TOKEN` en Secret Manager). Pero
-"publicar es una acción sobre el propio repo" dejó de valer para
-`jobsradar-api`: su `GITHUB_TOKEN` automático ahora pertenece a
-`nearcodecr`, una cuenta distinta de la dueña del paquete, y GitHub
-Packages exige ser colaborador explícito con escritura sobre ESE paquete
-para poder publicar en él — confirmado en vivo, los 3 pushes a `main`
-inmediatos a la transferencia fallaron en `publish-contracts` con `403
-Permission permission_denied: The requested installation does not exist`
-(mientras `build-test`/`docker-build` seguían en verde). El job pasa a usar
-un secret nuevo, `CONTRACTS_PUBLISH_TOKEN` — mismo patrón que
-`JOBSRADAR_API_RO_TOKEN` un poco más abajo: tiene que ser un **classic PAT**
-(no fine-grained, ver el hallazgo real de esa sección) con scope
-`write:packages` (+ `read:packages`, lo usa el `npm view` del paso), generado
-desde la cuenta `diegosancheznearcode` y agregado como secret del repo
-`nearcodecr/jobsradar-api`. Pendiente: alguien con acceso a esa cuenta tiene
-que generarlo y cargarlo — no es algo que se pueda automatizar desde la CLI.
+**El repo se transfirió el 2026-09-22** de la cuenta personal
+`diegosancheznearcode` a la organización `nearcodecr` (`git remote set-url`
+actualizado en ambos repos; ver también `nearcodecr/nearcode-infra` —
+Terraform + Cloud Build para Cloud Run, trabajo de onboarding de Dorian
+Cortes ya mergeado a `main` en los dos repos). Un primer intento de arreglo
+mantuvo el paquete bajo el scope personal y agregó un `CONTRACTS_PUBLISH_TOKEN`
+dedicado para publicar (mismo patrón que `JRW_GH_PACKAGES_TOKEN` para leer).
+Ese enfoque quedó revertido antes de cargarse el secret: el paquete se
+renombró en su lugar a **`@nearcodecr/jobsradar-contracts`**, para que su
+scope vuelva a coincidir con el owner real del repo. Con eso, "publicar es
+una acción sobre el propio repo" vuelve a ser cierto — el `GITHUB_TOKEN`
+automático del workflow alcanza de nuevo para publicar.
+
+Esto NO elimina la necesidad de un PAT para leer el paquete fuera de GitHub
+Actions -- `JRW_GH_PACKAGES_TOKEN` en Secret Manager sigue haciendo falta
+para el build de Cloud Build en jobsradar-web, que no tiene un `GITHUB_TOKEN`
+automático propio. Lo que arregla el rename es el 403 en sí: el acceso de
+lectura a un paquete de GitHub Packages sigue el acceso de colaborador al
+repo que lo publica, y esa regla solo aplica una vez que el paquete
+pertenece de verdad a ese repo.
 
 Del lado de `jobsradar-web`, el workaround de Fase 1 (clonar `jobsradar-api`
 como sibling en CI y symlinkear `packages/contracts/dist` para resolver el
 `file:` dependency) desaparece por completo: la dependencia pasa a ser
-`"@diegosancheznearcode/contracts": "^0.1.0"`, una versión real. Instalarla
+`"@nearcodecr/jobsradar-contracts": "^0.5.0"`, una versión real. Instalarla
 requiere autenticación contra `npm.pkg.github.com` (GitHub Packages no sirve
 paquetes de un repo privado sin token, ni siquiera de solo lectura) — se
 agrega un `.npmrc` con el registro scopeado y el token vía `NODE_AUTH_TOKEN`

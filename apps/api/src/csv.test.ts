@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Company } from "@diegosancheznearcode/contracts";
+import type { Company } from "@nearcodecr/jobsradar-contracts";
 import { companiesToCsv, filterCompaniesByLocation } from "./csv.js";
 
 function company(slug: string, jobLocations: (string | null)[]): Company {

@@ -1,5 +1,5 @@
-import type { Company, SearchCriteria } from "@diegosancheznearcode/contracts";
-import { CompanySchema } from "@diegosancheznearcode/contracts";
+import type { Company, SearchCriteria } from "@nearcodecr/jobsradar-contracts";
+import { CompanySchema } from "@nearcodecr/jobsradar-contracts";
 import type { CompanyDetailCounts, SearchRepositoryPort, SearchSnapshot } from "@jobsradar/domain";
 import type postgres from "postgres";
 

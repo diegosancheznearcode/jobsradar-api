@@ -1,6 +1,6 @@
 import { Redis } from "ioredis";
-import type { SearchEvent } from "@diegosancheznearcode/contracts";
-import { SearchEventSchema } from "@diegosancheznearcode/contracts";
+import type { SearchEvent } from "@nearcodecr/jobsradar-contracts";
+import { SearchEventSchema } from "@nearcodecr/jobsradar-contracts";
 import type { EventPublisherPort } from "@jobsradar/domain";
 
 // Implementa EventPublisherPort — ver ARCHITECTURE.md sección 5. Redis
