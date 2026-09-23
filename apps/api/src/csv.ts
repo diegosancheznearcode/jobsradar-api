@@ -1,4 +1,4 @@
-import type { Company } from "@diegosancheznearcode/contracts";
+import type { Company } from "@nearcodecr/jobsradar-contracts";
 
 // Exportación CSV — ver ARCHITECTURE.md sección 7. Sin librería externa:
 // es un formato simple y el proyecto ya evita dependencias innecesarias

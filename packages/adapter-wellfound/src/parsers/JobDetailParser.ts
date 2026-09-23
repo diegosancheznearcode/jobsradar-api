@@ -1,5 +1,5 @@
-import type { JobPosting } from "@diegosancheznearcode/contracts";
-import { JobPostingSchema } from "@diegosancheznearcode/contracts";
+import type { JobPosting } from "@nearcodecr/jobsradar-contracts";
+import { JobPostingSchema } from "@nearcodecr/jobsradar-contracts";
 import type { ExtractionError, Result } from "@jobsradar/domain";
 import { extractWithCascade } from "../cascade.js";
 import type { CascadeResult } from "../cascade.js";

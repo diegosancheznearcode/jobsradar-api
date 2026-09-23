@@ -10,9 +10,6 @@ importers:
 
   apps/api:
     dependencies:
-      '@diegosancheznearcode/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
       '@fastify/cors':
         specifier: ^10.0.0
         version: 10.1.0
@@ -25,6 +22,9 @@ importers:
       '@jobsradar/repository-postgres':
         specifier: workspace:*
         version: link:../../packages/repository-postgres
+      '@nearcodecr/jobsradar-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       bullmq:
         specifier: ^5.13.0
         version: 5.81.3
@@ -53,9 +53,6 @@ importers:
 
   apps/worker:
     dependencies:
-      '@diegosancheznearcode/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
       '@jobsradar/adapter-wellfound':
         specifier: workspace:*
         version: link:../../packages/adapter-wellfound
@@ -68,6 +65,9 @@ importers:
       '@jobsradar/repository-postgres':
         specifier: workspace:*
         version: link:../../packages/repository-postgres
+      '@nearcodecr/jobsradar-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       bullmq:
         specifier: ^5.13.0
         version: 5.81.3
@@ -96,12 +96,12 @@ importers:
 
   packages/adapter-wellfound:
     dependencies:
-      '@diegosancheznearcode/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@jobsradar/domain':
         specifier: workspace:*
         version: link:../domain
+      '@nearcodecr/jobsradar-contracts':
+        specifier: workspace:*
+        version: link:../contracts
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0
@@ -140,7 +140,7 @@ importers:
 
   packages/domain:
     dependencies:
-      '@diegosancheznearcode/contracts':
+      '@nearcodecr/jobsradar-contracts':
         specifier: workspace:*
         version: link:../contracts
       zod:
@@ -159,12 +159,12 @@ importers:
 
   packages/events-redis:
     dependencies:
-      '@diegosancheznearcode/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@jobsradar/domain':
         specifier: workspace:*
         version: link:../domain
+      '@nearcodecr/jobsradar-contracts':
+        specifier: workspace:*
+        version: link:../contracts
       ioredis:
         specifier: ^5.4.0
         version: 5.11.1
@@ -181,12 +181,12 @@ importers:
 
   packages/repository-postgres:
     dependencies:
-      '@diegosancheznearcode/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@jobsradar/domain':
         specifier: workspace:*
         version: link:../domain
+      '@nearcodecr/jobsradar-contracts':
+        specifier: workspace:*
+        version: link:../contracts
       postgres:
         specifier: ^3.4.0
         version: 3.4.9

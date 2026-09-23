@@ -56,7 +56,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # packages/domain y apps/* resuelven @diegosancheznearcode/contracts vía su
+      # packages/domain y apps/* resuelven @nearcodecr/jobsradar-contracts vía su
       # dist/ (package.json "types"/"main"), no contra el código fuente —
       # dist/ está en .gitignore, así que en un checkout limpio no existe
       # hasta compilar. pnpm build respeta el orden topológico del workspace
@@ -87,20 +87,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # "packages: write" ya no alcanza acá: desde que el repo se transfirió
-      # de diegosancheznearcode (cuenta personal) a nearcodecr (org), el
-      # GITHUB_TOKEN automático de este workflow pertenece a nearcodecr, pero
-      # @diegosancheznearcode/contracts se sigue publicando bajo la cuenta
-      # personal original (decisión del equipo, ver .npmrc y el Dockerfile de
-      # jobsradar-web — mismo motivo que justifica el secret
-      # JRW_GH_PACKAGES_TOKEN ahí: no se renombró el paquete). GitHub
-      # Packages exige ser colaborador explícito CON ESCRITURA del paquete
-      # para publicar — un GITHUB_TOKEN de otra cuenta/org da 403 "Permission
-      # permission_denied: The requested installation does not exist"
-      # (confirmado: los 3 pushes a main desde la transferencia fallaron acá,
-      # aunque build-test y docker-build siguieron en verde). CONTRACTS_PUBLISH_TOKEN
-      # es un classic PAT con scope write:packages (y read:packages, lo usa
-      # `npm view` más abajo) generado desde la cuenta diegosancheznearcode.
+      # El paquete pasó de @diegosancheznearcode/contracts (cuenta personal)
+      # a @nearcodecr/jobsradar-contracts. GitHub Packages ata un scope al
+      # GitHub owner del mismo nombre, así que ahora coincide con el owner
+      # de este repo (nearcodecr) y el GITHUB_TOKEN automático del workflow
+      # alcanza para publicar -- ya no hace falta un PAT dedicado de una
+      # cuenta personal (ver CONTRACTS_PUBLISH_TOKEN / JRW_GH_PACKAGES_TOKEN
+      # en el historial: ambos existían solo por el desajuste de scope).
       packages: write
 
     steps:
@@ -113,11 +106,11 @@ jobs:
           node-version: 22
           cache: pnpm
           registry-url: https://npm.pkg.github.com
-          scope: "@diegosancheznearcode"
+          scope: "@nearcodecr"
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm --filter @diegosancheznearcode/contracts build
+      - run: pnpm --filter @nearcodecr/jobsradar-contracts build
 
       # Publica solo si la versión en package.json todavía no existe en el
       # registro — evita que `npm publish` falle en cada push a main cuando
@@ -128,7 +121,7 @@ jobs:
         working-directory: packages/contracts
         run: |
           LOCAL_VERSION=$(node -p "require('./package.json').version")
-          PUBLISHED_VERSION=$(npm view @diegosancheznearcode/contracts version 2>/dev/null || echo "none")
+          PUBLISHED_VERSION=$(npm view @nearcodecr/jobsradar-contracts version 2>/dev/null || echo "none")
           if [ "$LOCAL_VERSION" != "$PUBLISHED_VERSION" ]; then
             echo "Publicando $LOCAL_VERSION (registro tiene: $PUBLISHED_VERSION)"
             npm publish
@@ -136,4 +129,4 @@ jobs:
             echo "Versión $LOCAL_VERSION ya publicada, nada que hacer."
           fi
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.CONTRACTS_PUBLISH_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

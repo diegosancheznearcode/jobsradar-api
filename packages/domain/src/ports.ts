@@ -1,4 +1,4 @@
-import type { Company, SearchCriteria, SearchEvent } from "@diegosancheznearcode/contracts";
+import type { Company, SearchCriteria, SearchEvent } from "@nearcodecr/jobsradar-contracts";
 import type { ExtractionError, Result } from "./result.js";
 
 // Puertos — ver ARCHITECTURE.md sección 5.

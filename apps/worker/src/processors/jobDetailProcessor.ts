@@ -1,4 +1,4 @@
-import { CompanySchema } from "@diegosancheznearcode/contracts";
+import { CompanySchema } from "@nearcodecr/jobsradar-contracts";
 import type { EventPublisherPort, ExtractionError, Result, SearchRepositoryPort } from "@jobsradar/domain";
 import type { CascadeResult, JobDetailResult } from "@jobsradar/adapter-wellfound";
 

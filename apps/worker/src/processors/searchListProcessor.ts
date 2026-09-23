@@ -1,4 +1,4 @@
-import type { SearchCriteria } from "@diegosancheznearcode/contracts";
+import type { SearchCriteria } from "@nearcodecr/jobsradar-contracts";
 import type { EventPublisherPort, JobSourcePort, SearchRepositoryPort } from "@jobsradar/domain";
 import { matchesMaxCompanySize } from "../companySizeFilter.js";
 
